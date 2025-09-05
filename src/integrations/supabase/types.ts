@@ -150,6 +150,63 @@ export type Database = {
         }
         Relationships: []
       }
+      cobranzas: {
+        Row: {
+          asignado_a: string | null
+          cliente_id: string | null
+          created_at: string | null
+          dias_vencido: number | null
+          estado: string | null
+          factura_id: string | null
+          id: string
+          notas: string | null
+          proxima_gestion_at: string | null
+          ultima_gestion_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          asignado_a?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          dias_vencido?: number | null
+          estado?: string | null
+          factura_id?: string | null
+          id?: string
+          notas?: string | null
+          proxima_gestion_at?: string | null
+          ultima_gestion_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          asignado_a?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          dias_vencido?: number | null
+          estado?: string | null
+          factura_id?: string | null
+          id?: string
+          notas?: string | null
+          proxima_gestion_at?: string | null
+          ultima_gestion_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranzas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobranzas_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "facturas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contactos: {
         Row: {
           cargo: string | null
@@ -309,66 +366,140 @@ export type Database = {
           },
         ]
       }
+      despacho_checklists: {
+        Row: {
+          categoria: string | null
+          created_at: string | null
+          cumplido: boolean | null
+          despacho_id: string | null
+          id: string
+          item: string
+          nota: string | null
+          obligatorio: boolean | null
+          orden_display: number | null
+          verificado_at: string | null
+          verificado_por: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string | null
+          cumplido?: boolean | null
+          despacho_id?: string | null
+          id?: string
+          item: string
+          nota?: string | null
+          obligatorio?: boolean | null
+          orden_display?: number | null
+          verificado_at?: string | null
+          verificado_por?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string | null
+          cumplido?: boolean | null
+          despacho_id?: string | null
+          id?: string
+          item?: string
+          nota?: string | null
+          obligatorio?: boolean | null
+          orden_display?: number | null
+          verificado_at?: string | null
+          verificado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despacho_checklists_despacho_id_fkey"
+            columns: ["despacho_id"]
+            isOneToOne: false
+            referencedRelation: "despachos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       despachos: {
         Row: {
+          archivos_adjuntos: Json | null
           checklist: Json | null
           cliente_id: string | null
+          codigo_despacho: string | null
           contacto: string
           cotizacion_id: string | null
           created_at: string | null
           direccion: string
           email: string | null
           estado: string | null
+          fecha_confirmacion: string | null
+          hora_entrega: string | null
           id: string
           institucion: string
           numero_guia: string | null
           numero_orden: string | null
           observaciones: string | null
           plazo_entrega: string | null
+          productos_despachados: Json | null
+          responsable_entrega: string | null
           rut_institucion: string | null
           telefono: string | null
+          telefono_responsable: string | null
+          tipo_despacho: string | null
           transportista: string | null
           updated_at: string | null
           vendedor_id: string | null
         }
         Insert: {
+          archivos_adjuntos?: Json | null
           checklist?: Json | null
           cliente_id?: string | null
+          codigo_despacho?: string | null
           contacto: string
           cotizacion_id?: string | null
           created_at?: string | null
           direccion: string
           email?: string | null
           estado?: string | null
+          fecha_confirmacion?: string | null
+          hora_entrega?: string | null
           id?: string
           institucion: string
           numero_guia?: string | null
           numero_orden?: string | null
           observaciones?: string | null
           plazo_entrega?: string | null
+          productos_despachados?: Json | null
+          responsable_entrega?: string | null
           rut_institucion?: string | null
           telefono?: string | null
+          telefono_responsable?: string | null
+          tipo_despacho?: string | null
           transportista?: string | null
           updated_at?: string | null
           vendedor_id?: string | null
         }
         Update: {
+          archivos_adjuntos?: Json | null
           checklist?: Json | null
           cliente_id?: string | null
+          codigo_despacho?: string | null
           contacto?: string
           cotizacion_id?: string | null
           created_at?: string | null
           direccion?: string
           email?: string | null
           estado?: string | null
+          fecha_confirmacion?: string | null
+          hora_entrega?: string | null
           id?: string
           institucion?: string
           numero_guia?: string | null
           numero_orden?: string | null
           observaciones?: string | null
           plazo_entrega?: string | null
+          productos_despachados?: Json | null
+          responsable_entrega?: string | null
           rut_institucion?: string | null
           telefono?: string | null
+          telefono_responsable?: string | null
+          tipo_despacho?: string | null
           transportista?: string | null
           updated_at?: string | null
           vendedor_id?: string | null
@@ -399,39 +530,51 @@ export type Database = {
       }
       facturas: {
         Row: {
+          archivo_pdf_url: string | null
           cliente_id: string | null
           created_at: string | null
           estado: string | null
+          estado_documento: string | null
           fecha_emision: string
           fecha_vencimiento: string
           id: string
           monto: number
           numero_factura: string
           numero_ot_oc: string | null
+          observaciones: string | null
+          rut_cliente: string | null
           updated_at: string | null
         }
         Insert: {
+          archivo_pdf_url?: string | null
           cliente_id?: string | null
           created_at?: string | null
           estado?: string | null
+          estado_documento?: string | null
           fecha_emision: string
           fecha_vencimiento: string
           id?: string
           monto: number
           numero_factura: string
           numero_ot_oc?: string | null
+          observaciones?: string | null
+          rut_cliente?: string | null
           updated_at?: string | null
         }
         Update: {
+          archivo_pdf_url?: string | null
           cliente_id?: string | null
           created_at?: string | null
           estado?: string | null
+          estado_documento?: string | null
           fecha_emision?: string
           fecha_vencimiento?: string
           id?: string
           monto?: number
           numero_factura?: string
           numero_ot_oc?: string | null
+          observaciones?: string | null
+          rut_cliente?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -495,55 +638,192 @@ export type Database = {
           },
         ]
       }
+      historial_gestiones: {
+        Row: {
+          adjuntos: Json | null
+          cobranza_id: string | null
+          comentario: string | null
+          created_at: string | null
+          factura_id: string | null
+          id: string
+          proxima_accion_at: string | null
+          resultado: string
+          tipo: string
+          user_id: string | null
+        }
+        Insert: {
+          adjuntos?: Json | null
+          cobranza_id?: string | null
+          comentario?: string | null
+          created_at?: string | null
+          factura_id?: string | null
+          id?: string
+          proxima_accion_at?: string | null
+          resultado: string
+          tipo: string
+          user_id?: string | null
+        }
+        Update: {
+          adjuntos?: Json | null
+          cobranza_id?: string | null
+          comentario?: string | null
+          created_at?: string | null
+          factura_id?: string | null
+          id?: string
+          proxima_accion_at?: string | null
+          resultado?: string
+          tipo?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historial_gestiones_cobranza_id_fkey"
+            columns: ["cobranza_id"]
+            isOneToOne: false
+            referencedRelation: "cobranzas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historial_gestiones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "facturas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       informes_tecnicos: {
         Row: {
           acciones: string | null
+          cliente_nombre: string | null
           created_at: string | null
           diagnostico: string | null
           enviado_cliente: boolean | null
+          estado_informe: string | null
+          fecha_servicio: string | null
           firma_tecnico: string | null
           id: string
+          materiales_utilizados: Json | null
           numero: string
           observaciones: string | null
           pdf_url: string | null
           qr_code: string | null
           recomendaciones: string | null
-          ticket_id: string | null
+          servicio_id: string | null
+          tecnico_nombre: string | null
+          tiempo_total_horas: number | null
         }
         Insert: {
           acciones?: string | null
+          cliente_nombre?: string | null
           created_at?: string | null
           diagnostico?: string | null
           enviado_cliente?: boolean | null
+          estado_informe?: string | null
+          fecha_servicio?: string | null
           firma_tecnico?: string | null
           id?: string
+          materiales_utilizados?: Json | null
           numero: string
           observaciones?: string | null
           pdf_url?: string | null
           qr_code?: string | null
           recomendaciones?: string | null
-          ticket_id?: string | null
+          servicio_id?: string | null
+          tecnico_nombre?: string | null
+          tiempo_total_horas?: number | null
         }
         Update: {
           acciones?: string | null
+          cliente_nombre?: string | null
           created_at?: string | null
           diagnostico?: string | null
           enviado_cliente?: boolean | null
+          estado_informe?: string | null
+          fecha_servicio?: string | null
           firma_tecnico?: string | null
           id?: string
+          materiales_utilizados?: Json | null
           numero?: string
           observaciones?: string | null
           pdf_url?: string | null
           qr_code?: string | null
           recomendaciones?: string | null
-          ticket_id?: string | null
+          servicio_id?: string | null
+          tecnico_nombre?: string | null
+          tiempo_total_horas?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "informes_tecnicos_ticket_id_fkey"
-            columns: ["ticket_id"]
+            columns: ["servicio_id"]
             isOneToOne: false
             referencedRelation: "tickets_tecnicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventario: {
+        Row: {
+          codigo_producto: string
+          costo_promedio: number | null
+          created_at: string | null
+          estado: string | null
+          id: string
+          linea_negocio: string | null
+          nombre_producto: string
+          producto_id: string | null
+          proveedor: string | null
+          stock_actual: number | null
+          stock_minimo: number | null
+          stock_reservado: number | null
+          ubicacion: string | null
+          ultimo_ingreso: string | null
+          ultimo_movimiento: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          codigo_producto: string
+          costo_promedio?: number | null
+          created_at?: string | null
+          estado?: string | null
+          id?: string
+          linea_negocio?: string | null
+          nombre_producto: string
+          producto_id?: string | null
+          proveedor?: string | null
+          stock_actual?: number | null
+          stock_minimo?: number | null
+          stock_reservado?: number | null
+          ubicacion?: string | null
+          ultimo_ingreso?: string | null
+          ultimo_movimiento?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          codigo_producto?: string
+          costo_promedio?: number | null
+          created_at?: string | null
+          estado?: string | null
+          id?: string
+          linea_negocio?: string | null
+          nombre_producto?: string
+          producto_id?: string | null
+          proveedor?: string | null
+          stock_actual?: number | null
+          stock_minimo?: number | null
+          stock_reservado?: number | null
+          ubicacion?: string | null
+          ultimo_ingreso?: string | null
+          ultimo_movimiento?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventario_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: true
+            referencedRelation: "productos"
             referencedColumns: ["id"]
           },
         ]
@@ -591,31 +871,46 @@ export type Database = {
       }
       notificaciones: {
         Row: {
+          accion_url: string | null
+          archivada: boolean | null
+          categoria: string | null
           created_at: string | null
           id: string
           leida: boolean | null
           mensaje: string | null
+          origen_id: string | null
           payload: Json | null
+          prioridad: string | null
           tipo: string
           titulo: string
           user_id: string | null
         }
         Insert: {
+          accion_url?: string | null
+          archivada?: boolean | null
+          categoria?: string | null
           created_at?: string | null
           id?: string
           leida?: boolean | null
           mensaje?: string | null
+          origen_id?: string | null
           payload?: Json | null
+          prioridad?: string | null
           tipo: string
           titulo: string
           user_id?: string | null
         }
         Update: {
+          accion_url?: string | null
+          archivada?: boolean | null
+          categoria?: string | null
           created_at?: string | null
           id?: string
           leida?: boolean | null
           mensaje?: string | null
+          origen_id?: string | null
           payload?: Json | null
+          prioridad?: string | null
           tipo?: string
           titulo?: string
           user_id?: string | null
@@ -626,6 +921,72 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orden_compra_pdf: {
+        Row: {
+          archivo_nombre: string | null
+          archivo_pdf_url: string
+          cliente_id: string | null
+          cotizacion_id: string | null
+          created_at: string | null
+          estado_ocr: string | null
+          extraido_json: Json | null
+          fecha_oc: string | null
+          id: string
+          monto_total: number | null
+          numero_oc: string | null
+          observaciones: string | null
+          procesado_por: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          archivo_nombre?: string | null
+          archivo_pdf_url: string
+          cliente_id?: string | null
+          cotizacion_id?: string | null
+          created_at?: string | null
+          estado_ocr?: string | null
+          extraido_json?: Json | null
+          fecha_oc?: string | null
+          id?: string
+          monto_total?: number | null
+          numero_oc?: string | null
+          observaciones?: string | null
+          procesado_por?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          archivo_nombre?: string | null
+          archivo_pdf_url?: string
+          cliente_id?: string | null
+          cotizacion_id?: string | null
+          created_at?: string | null
+          estado_ocr?: string | null
+          extraido_json?: Json | null
+          fecha_oc?: string | null
+          id?: string
+          monto_total?: number | null
+          numero_oc?: string | null
+          observaciones?: string | null
+          procesado_por?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orden_compra_pdf_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_pdf_cotizacion_id_fkey"
+            columns: ["cotizacion_id"]
+            isOneToOne: false
+            referencedRelation: "cotizaciones"
             referencedColumns: ["id"]
           },
         ]
@@ -885,6 +1246,99 @@ export type Database = {
             columns: ["vendedor_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      servicios_tecnicos: {
+        Row: {
+          cliente_id: string | null
+          contacto_cliente: string | null
+          created_at: string | null
+          descripcion: string
+          equipo: string
+          estado: string | null
+          fecha_fin: string | null
+          fecha_inicio: string | null
+          fecha_programada: string | null
+          id: string
+          marca: string | null
+          modelo: string | null
+          numero_serie: string | null
+          numero_ticket: string
+          observaciones: string | null
+          origen: string
+          prioridad: string | null
+          referencias_cotizacion: string | null
+          solucion: string | null
+          tecnico_id: string | null
+          telefono_contacto: string | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          contacto_cliente?: string | null
+          created_at?: string | null
+          descripcion: string
+          equipo: string
+          estado?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          fecha_programada?: string | null
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          numero_serie?: string | null
+          numero_ticket?: string
+          observaciones?: string | null
+          origen: string
+          prioridad?: string | null
+          referencias_cotizacion?: string | null
+          solucion?: string | null
+          tecnico_id?: string | null
+          telefono_contacto?: string | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          contacto_cliente?: string | null
+          created_at?: string | null
+          descripcion?: string
+          equipo?: string
+          estado?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          fecha_programada?: string | null
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          numero_serie?: string | null
+          numero_ticket?: string
+          observaciones?: string | null
+          origen?: string
+          prioridad?: string | null
+          referencias_cotizacion?: string | null
+          solucion?: string | null
+          tecnico_id?: string | null
+          telefono_contacto?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servicios_tecnicos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servicios_tecnicos_referencias_cotizacion_fkey"
+            columns: ["referencias_cotizacion"]
+            isOneToOne: false
+            referencedRelation: "cotizaciones"
             referencedColumns: ["id"]
           },
         ]
