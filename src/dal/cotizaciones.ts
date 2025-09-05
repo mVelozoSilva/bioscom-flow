@@ -46,15 +46,19 @@ export class CotizacionesDAL {
         `);
 
       if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(filters)) {
           if (value !== undefined && value !== null) {
             if (key === 'search') {
               query = query.or(`codigo.ilike.%${value}%,observaciones.ilike.%${value}%`);
-            } else {
-              query = query.eq(key as any, value);
+            } else if (key === 'estado') {
+              query = query.eq('estado', value);
+            } else if (key === 'cliente_id') {
+              query = query.eq('cliente_id', value);
+            } else if (key === 'vendedor_id') {
+              query = query.eq('vendedor_id', value);
             }
           }
-        });
+        }
       }
 
       query = query.order('created_at', { ascending: false });

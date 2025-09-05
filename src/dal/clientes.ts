@@ -38,15 +38,17 @@ export class ClientesDAL {
         `);
 
       if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(filters)) {
           if (value !== undefined && value !== null) {
             if (key === 'search') {
               query = query.or(`nombre.ilike.%${value}%,rut.ilike.%${value}%`);
-            } else {
-              query = query.eq(key as any, value);
+            } else if (key === 'tipo') {
+              query = query.eq('tipo', value);
+            } else if (key === 'estado_relacional') {
+              query = query.eq('estado_relacional', value);
             }
           }
-        });
+        }
       }
 
       query = query.order('created_at', { ascending: false });

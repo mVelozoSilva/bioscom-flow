@@ -53,7 +53,7 @@ export class ProductosDAL {
         `);
 
       if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(filters)) {
           if (value !== undefined && value !== null) {
             if (key === 'search') {
               query = query.or(`nombre.ilike.%${value}%,codigo_producto.ilike.%${value}%,descripcion_corta.ilike.%${value}%`);
@@ -61,11 +61,11 @@ export class ProductosDAL {
               query = query.eq('categoria_id', value);
             } else if (key === 'estado') {
               query = query.eq('estado', value === 'true');
-            } else {
-              query = query.eq(key as any, value);
+            } else if (key === 'linea_negocio') {
+              query = query.eq('linea_negocio', value);
             }
           }
-        });
+        }
       }
 
       query = query.order('created_at', { ascending: false });
