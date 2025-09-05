@@ -1,0 +1,347 @@
+-- =======================================================
+-- EXTENSIONES OPCIONALES PARA BIOSCOM CRM/ERP
+-- =======================================================
+-- Este archivo contiene SQL para funcionalidades avanzadas
+-- que requieren extensiones de PostgreSQL.
+-- Son opcionales y el sistema funciona sin ellas.
+
+-- =======================================================
+-- 1. CRON JOBS PARA AUTOMATIZACIONES PERIÓDICAS
+-- =======================================================
+-- Requiere extensión pg_cron
+
+-- Habilitar extensiones (solo superuser)
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- Actualizar días vencido diariamente
+-- SELECT cron.schedule(
+--   'actualizar-dias-vencido',
+--   '0 6 * * *', -- Todos los días a las 6 AM
+--   $$
+--   UPDATE public.cobranzas 
+--   SET dias_vencido = GREATEST(0, CURRENT_DATE - (
+--     SELECT fecha_vencimiento 
+--     FROM public.facturas 
+--     WHERE id = cobranzas.factura_id
+--   ))
+--   WHERE estado IN ('pendiente', 'gestionando');
+--   $$
+-- );
+
+-- Crear notificaciones para gestiones vencidas
+-- SELECT cron.schedule(
+--   'notificar-gestiones-vencidas',
+--   '0 8 * * 1-5', -- Lunes a viernes a las 8 AM
+--   $$
+--   INSERT INTO public.notificaciones (user_id, titulo, mensaje, categoria, prioridad)
+--   SELECT 
+--     c.asignado_a,
+--     'Gestión de Cobranza Vencida',
+--     'Tienes gestiones de cobranza vencidas que requieren atención',
+--     'cobranza',
+--     'alta'
+--   FROM public.cobranzas c
+--   WHERE c.proxima_gestion_at < CURRENT_DATE
+--     AND c.estado IN ('pendiente', 'gestionando')
+--     AND c.asignado_a IS NOT NULL
+--   GROUP BY c.asignado_a;
+--   $$
+-- );
+
+-- Notificar servicios técnicos sin programar
+-- SELECT cron.schedule(
+--   'servicios-sin-programar',
+--   '0 9 * * 1-5', -- Lunes a viernes a las 9 AM
+--   $$
+--   INSERT INTO public.notificaciones (user_id, titulo, mensaje, categoria, prioridad)
+--   SELECT 
+--     up.id,
+--     'Servicios Técnicos Pendientes',
+--     'Hay servicios técnicos sin fecha programada',
+--     'tecnico',
+--     'normal'
+--   FROM public.servicios_tecnicos st
+--   CROSS JOIN public.user_profiles up
+--   WHERE st.estado = 'pendiente' 
+--     AND st.fecha_programada IS NULL
+--     AND st.created_at < CURRENT_DATE - INTERVAL '2 days'
+--     AND up.departamento = 'tecnico'
+--     AND up.activo = true
+--   GROUP BY up.id;
+--   $$
+-- );
+
+-- =======================================================
+-- 2. FULL-TEXT SEARCH AVANZADO
+-- =======================================================
+-- Requiere configuración de índices GIN
+
+-- Crear índice para búsqueda en clientes
+-- CREATE INDEX IF NOT EXISTS idx_clientes_search 
+-- ON public.clientes 
+-- USING GIN (to_tsvector('spanish', nombre || ' ' || COALESCE(rut, '')));
+
+-- Crear índice para búsqueda en productos
+-- CREATE INDEX IF NOT EXISTS idx_productos_search 
+-- ON public.productos 
+-- USING GIN (to_tsvector('spanish', nombre || ' ' || COALESCE(codigo_producto, '') || ' ' || COALESCE(descripcion_corta, '')));
+
+-- Función de búsqueda avanzada para clientes
+-- CREATE OR REPLACE FUNCTION public.buscar_clientes(termino text)
+-- RETURNS TABLE (
+--   id uuid,
+--   nombre text,
+--   rut text,
+--   score real
+-- ) AS $$
+-- BEGIN
+--   RETURN QUERY
+--   SELECT 
+--     c.id,
+--     c.nombre,
+--     c.rut,
+--     ts_rank(to_tsvector('spanish', c.nombre || ' ' || COALESCE(c.rut, '')), plainto_tsquery('spanish', termino)) as score
+--   FROM public.clientes c
+--   WHERE to_tsvector('spanish', c.nombre || ' ' || COALESCE(c.rut, '')) @@ plainto_tsquery('spanish', termino)
+--   ORDER BY score DESC;
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- =======================================================
+-- 3. AUDITORÍA AVANZADA CON TEMPORAL TABLES
+-- =======================================================
+-- Requiere extensión temporal_tables (opcional)
+
+-- Crear tabla de auditoría para cambios críticos
+-- CREATE TABLE IF NOT EXISTS public.auditoria_detallada (
+--   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+--   tabla_nombre text NOT NULL,
+--   registro_id uuid NOT NULL,
+--   usuario_id uuid REFERENCES auth.users(id),
+--   accion text NOT NULL, -- INSERT, UPDATE, DELETE
+--   datos_antes jsonb,
+--   datos_despues jsonb,
+--   ip_address inet,
+--   user_agent text,
+--   timestamp_accion timestamp with time zone DEFAULT now()
+-- );
+
+-- Función genérica para auditoría
+-- CREATE OR REPLACE FUNCTION public.audit_trigger()
+-- RETURNS trigger AS $$
+-- BEGIN
+--   IF TG_OP = 'DELETE' THEN
+--     INSERT INTO public.auditoria_detallada (
+--       tabla_nombre, registro_id, usuario_id, accion, datos_antes
+--     ) VALUES (
+--       TG_TABLE_NAME, OLD.id, auth.uid(), TG_OP, row_to_json(OLD)
+--     );
+--     RETURN OLD;
+--   ELSIF TG_OP = 'UPDATE' THEN
+--     INSERT INTO public.auditoria_detallada (
+--       tabla_nombre, registro_id, usuario_id, accion, datos_antes, datos_despues
+--     ) VALUES (
+--       TG_TABLE_NAME, NEW.id, auth.uid(), TG_OP, row_to_json(OLD), row_to_json(NEW)
+--     );
+--     RETURN NEW;
+--   ELSIF TG_OP = 'INSERT' THEN
+--     INSERT INTO public.auditoria_detallada (
+--       tabla_nombre, registro_id, usuario_id, accion, datos_despues
+--     ) VALUES (
+--       TG_TABLE_NAME, NEW.id, auth.uid(), TG_OP, row_to_json(NEW)
+--     );
+--     RETURN NEW;
+--   END IF;
+--   RETURN NULL;
+-- END;
+-- $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Aplicar auditoría a tablas críticas
+-- CREATE TRIGGER audit_cotizaciones_trigger
+--   AFTER INSERT OR UPDATE OR DELETE ON public.cotizaciones
+--   FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+-- CREATE TRIGGER audit_facturas_trigger
+--   AFTER INSERT OR UPDATE OR DELETE ON public.facturas
+--   FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+-- =======================================================
+-- 4. NOTIFICACIONES PUSH WEB
+-- =======================================================
+-- Requiere integración con servicio web push
+
+-- Tabla para almacenar suscripciones push
+-- CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+--   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+--   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+--   endpoint text NOT NULL,
+--   p256dh_key text NOT NULL,
+--   auth_key text NOT NULL,
+--   user_agent text,
+--   created_at timestamp with time zone DEFAULT now(),
+--   UNIQUE(user_id, endpoint)
+-- );
+
+-- Función para enviar notificación push (placeholder)
+-- CREATE OR REPLACE FUNCTION public.send_push_notification(
+--   usuario_id uuid,
+--   titulo text,
+--   mensaje text,
+--   url_accion text DEFAULT NULL
+-- )
+-- RETURNS boolean AS $$
+-- DECLARE
+--   subscription_record public.push_subscriptions%ROWTYPE;
+-- BEGIN
+--   -- Obtener suscripción del usuario
+--   SELECT * INTO subscription_record
+--   FROM public.push_subscriptions
+--   WHERE user_id = usuario_id
+--   ORDER BY created_at DESC
+--   LIMIT 1;
+--   
+--   IF NOT FOUND THEN
+--     RETURN FALSE;
+--   END IF;
+--   
+--   -- Aquí iría la lógica para enviar la notificación push
+--   -- usando pg_net o llamada a servicio externo
+--   
+--   -- Por ahora, solo crear notificación interna
+--   INSERT INTO public.notificaciones (
+--     user_id, titulo, mensaje, accion_url
+--   ) VALUES (
+--     usuario_id, titulo, mensaje, url_accion
+--   );
+--   
+--   RETURN TRUE;
+-- END;
+-- $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- =======================================================
+-- 5. REPORTES AVANZADOS CON VISTAS MATERIALIZADAS
+-- =======================================================
+-- Para optimizar consultas pesadas de reportes
+
+-- Vista materializada para KPIs de cobranza
+-- CREATE MATERIALIZED VIEW IF NOT EXISTS public.kpis_cobranza AS
+-- SELECT 
+--   DATE_TRUNC('month', created_at) as mes,
+--   COUNT(*) as total_facturas,
+--   SUM(monto) as monto_total,
+--   COUNT(*) FILTER (WHERE estado = 'pagada') as facturas_pagadas,
+--   SUM(monto) FILTER (WHERE estado = 'pagada') as monto_pagado,
+--   COUNT(*) FILTER (WHERE fecha_vencimiento < CURRENT_DATE) as facturas_vencidas,
+--   SUM(monto) FILTER (WHERE fecha_vencimiento < CURRENT_DATE) as monto_vencido
+-- FROM public.facturas f
+-- GROUP BY DATE_TRUNC('month', created_at);
+
+-- Refrescar automáticamente cada noche
+-- SELECT cron.schedule(
+--   'refresh-kpis-cobranza',
+--   '0 2 * * *', -- Todos los días a las 2 AM
+--   'REFRESH MATERIALIZED VIEW public.kpis_cobranza;'
+-- );
+
+-- Vista materializada para performance de técnicos
+-- CREATE MATERIALIZED VIEW IF NOT EXISTS public.performance_tecnicos AS
+-- SELECT 
+--   st.tecnico_id,
+--   up.nombre as tecnico_nombre,
+--   COUNT(*) as servicios_total,
+--   COUNT(*) FILTER (WHERE st.estado = 'completado') as servicios_completados,
+--   AVG(EXTRACT(EPOCH FROM (st.fecha_fin - st.fecha_inicio))/3600) as horas_promedio,
+--   COUNT(*) FILTER (WHERE st.fecha_fin <= st.fecha_programada) as servicios_a_tiempo
+-- FROM public.servicios_tecnicos st
+-- LEFT JOIN public.user_profiles up ON st.tecnico_id = up.id
+-- WHERE st.tecnico_id IS NOT NULL
+-- GROUP BY st.tecnico_id, up.nombre;
+
+-- =======================================================
+-- 6. BACKUP AUTOMÁTICO DE DATOS CRÍTICOS
+-- =======================================================
+-- Script para backup selectivo de datos importantes
+
+-- Función para exportar datos críticos a JSON
+-- CREATE OR REPLACE FUNCTION public.export_backup_data()
+-- RETURNS json AS $$
+-- DECLARE
+--   backup_data json;
+-- BEGIN
+--   SELECT json_build_object(
+--     'timestamp', now(),
+--     'version', '1.0',
+--     'clientes', (SELECT json_agg(row_to_json(c)) FROM public.clientes c),
+--     'productos', (SELECT json_agg(row_to_json(p)) FROM public.productos p),
+--     'cotizaciones', (SELECT json_agg(row_to_json(co)) FROM public.cotizaciones co WHERE created_at > now() - INTERVAL '1 year'),
+--     'facturas', (SELECT json_agg(row_to_json(f)) FROM public.facturas f WHERE created_at > now() - INTERVAL '1 year'),
+--     'servicios_tecnicos', (SELECT json_agg(row_to_json(st)) FROM public.servicios_tecnicos st WHERE created_at > now() - INTERVAL '1 year')
+--   ) INTO backup_data;
+--   
+--   RETURN backup_data;
+-- END;
+-- $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- =======================================================
+-- 7. ANALYTICS AVANZADO
+-- =======================================================
+-- Funciones para métricas de negocio avanzadas
+
+-- Función para calcular tendencias de ventas
+-- CREATE OR REPLACE FUNCTION public.calcular_tendencia_ventas(
+--   fecha_inicio date DEFAULT CURRENT_DATE - INTERVAL '6 months',
+--   fecha_fin date DEFAULT CURRENT_DATE
+-- )
+-- RETURNS TABLE (
+--   mes date,
+--   total_cotizaciones integer,
+--   cotizaciones_aceptadas integer,
+--   monto_total numeric,
+--   tasa_conversion numeric
+-- ) AS $$
+-- BEGIN
+--   RETURN QUERY
+--   SELECT 
+--     DATE_TRUNC('month', c.created_at)::date as mes,
+--     COUNT(*)::integer as total_cotizaciones,
+--     COUNT(*) FILTER (WHERE c.estado = 'Aceptada')::integer as cotizaciones_aceptadas,
+--     COALESCE(SUM(ci.precio_unit * ci.cantidad), 0) as monto_total,
+--     ROUND(
+--       COUNT(*) FILTER (WHERE c.estado = 'Aceptada')::numeric / 
+--       GREATEST(COUNT(*), 1) * 100, 2
+--     ) as tasa_conversion
+--   FROM public.cotizaciones c
+--   LEFT JOIN public.cotizacion_items ci ON c.id = ci.cotizacion_id
+--   WHERE c.created_at BETWEEN fecha_inicio AND fecha_fin
+--   GROUP BY DATE_TRUNC('month', c.created_at)
+--   ORDER BY mes;
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- =======================================================
+-- INSTRUCCIONES DE INSTALACIÓN
+-- =======================================================
+
+-- Para habilitar estas funcionalidades:
+-- 
+-- 1. Contactar al administrador de Supabase para habilitar extensiones:
+--    - pg_cron (para tareas programadas)
+--    - pg_net (para llamadas HTTP)
+--    - postgres_fdw (para integraciones externas)
+-- 
+-- 2. Ejecutar este archivo SQL en orden:
+--    psql -h db.xxx.supabase.co -U postgres -d postgres -f optativo_extensiones.sql
+-- 
+-- 3. Configurar variables de entorno adicionales:
+--    - PUSH_NOTIFICATION_KEY (para notificaciones web)
+--    - BACKUP_WEBHOOK_URL (para backups externos)
+-- 
+-- 4. Monitorear logs en Supabase Dashboard:
+--    - Logs de cron jobs
+--    - Performance de vistas materializadas
+--    - Errores de notificaciones push
+
+-- NOTA: Estas funcionalidades son opcionales y el sistema funciona
+-- completamente sin ellas. Agregarlas mejora la funcionalidad pero
+-- aumenta la complejidad operacional.
