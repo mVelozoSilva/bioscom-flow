@@ -268,14 +268,14 @@ const Productos = () => {
               </div>
             </div>
             <Select
-              value={filtros.categoria_id}
-              onValueChange={(value) => setFiltros({ ...filtros, categoria_id: value })}
+              value={filtros.categoria_id || "todas"}
+              onValueChange={(value) => setFiltros({ ...filtros, categoria_id: value === "todas" ? "" : value })}
             >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Todas las categorías" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas las categorías</SelectItem>
+                <SelectItem value="todas">Todas las categorías</SelectItem>
                 {categorias.map((categoria) => (
                   <SelectItem key={categoria.id} value={categoria.id}>
                     {categoria.nombre}
@@ -284,14 +284,14 @@ const Productos = () => {
               </SelectContent>
             </Select>
             <Select
-              value={filtros.estado}
-              onValueChange={(value) => setFiltros({ ...filtros, estado: value })}
+              value={filtros.estado || "todos"}
+              onValueChange={(value) => setFiltros({ ...filtros, estado: value === "todos" ? "" : value })}
             >
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="true">Activos</SelectItem>
                 <SelectItem value="false">Inactivos</SelectItem>
               </SelectContent>
