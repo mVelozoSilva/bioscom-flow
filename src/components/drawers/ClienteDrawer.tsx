@@ -35,8 +35,8 @@ export function ClienteDrawer({ open, onOpenChange, onSuccess }: ClienteDrawerPr
   const { toast } = useToast();
 
   const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rutFormateado = formatRut(e.target.value);
-    setFormData({ ...formData, rut: rutFormateado });
+    const validation = validateRut(e.target.value);
+    setFormData({ ...formData, rut: validation.formatted || e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,10 +51,11 @@ export function ClienteDrawer({ open, onOpenChange, onSuccess }: ClienteDrawerPr
       return;
     }
 
-    if (!validateRut(formData.rut)) {
+    const rutValidation = validateRut(formData.rut);
+    if (!rutValidation.valid) {
       toast({
         title: "Error",
-        description: "RUT inválido",
+        description: rutValidation.error || "RUT inválido",
         variant: "destructive",
       });
       return;

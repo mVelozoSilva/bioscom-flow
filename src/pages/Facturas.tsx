@@ -20,25 +20,9 @@ import {
   Download
 } from 'lucide-react';
 import { facturasSeed } from '@/data/seeds';
-import { Factura as FacturaBase } from '@/types';
-
-interface Factura extends FacturaBase {
-  id: string;
-  numero_factura: string;
-  cliente_id: string;
-  rut_cliente: string;
-  monto: number;
-  fecha_emision: string;
-  fecha_vencimiento: string;
-  estado: string;
-  estado_documento: string;
-  numero_ot_oc?: string;
-  observaciones?: string;
-  archivo_pdf_url?: string;
-}
 
 export default function Facturas() {
-  const [facturas] = useState<Factura[]>(facturasSeed as Factura[]);
+  const [facturas] = useState(facturasSeed);
   const [searchTerm, setSearchTerm] = useState('');
 
   const getEstadoColor = (estado: string) => {
@@ -69,7 +53,7 @@ export default function Facturas() {
     return diffDays;
   };
 
-  const columns: ColumnDef<Factura>[] = [
+  const columns: ColumnDef<any>[] = [
     {
       accessorKey: 'numero_factura',
       header: 'N° Factura',
