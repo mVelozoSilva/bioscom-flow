@@ -76,7 +76,7 @@ function calculateDv(rut: number): string {
 /**
  * Formatea un RUT con puntos y guión
  */
-function formatRut(body: string, dv: string): string {
+export function formatRut(body: string, dv: string): string {
   // Agregar puntos cada 3 dígitos desde la derecha
   const formatted = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${formatted}-${dv.toUpperCase()}`;

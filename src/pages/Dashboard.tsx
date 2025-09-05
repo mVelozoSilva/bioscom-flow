@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,8 +19,20 @@ import {
   Plus
 } from 'lucide-react';
 import { usuariosSeed, tareasSeed, cotizacionesSeed, seguimientosSeed, facturasSeed, clientesSeed } from '@/data/seeds';
+import { TareaDrawer } from '@/components/drawers/TareaDrawer';
+import { ClienteDrawer } from '@/components/drawers/ClienteDrawer';
+import { CotizacionWizard } from '@/components/wizards/CotizacionWizard';
+import { ServicioTecnicoDrawer } from '@/components/drawers/ServicioTecnicoDrawer';
+import { DespachoDrawer } from '@/components/drawers/DespachoDrawer';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const [tareaDrawerOpen, setTareaDrawerOpen] = useState(false);
+  const [clienteDrawerOpen, setClienteDrawerOpen] = useState(false);
+  const [cotizacionWizardOpen, setCotizacionWizardOpen] = useState(false);
+  const [servicioDrawerOpen, setServicioDrawerOpen] = useState(false);
+  const [despachoDrawerOpen, setDespachoDrawerOpen] = useState(false);
+
   // Datos para Mi Día
   const tareasHoy = tareasSeed.filter(tarea => {
     const hoy = new Date();
@@ -84,11 +97,11 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate('/mi-dia/semana')}>
               <Calendar className="h-4 w-4 mr-2" />
               Ver Semana
             </Button>
-            <Button>
+            <Button onClick={() => setTareaDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nueva Tarea
             </Button>
@@ -270,19 +283,35 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Button variant="outline" className="h-20 flex flex-col space-y-2">
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col space-y-2"
+                onClick={() => setCotizacionWizardOpen(true)}
+              >
                 <FileText className="h-6 w-6" />
                 <span className="text-sm">Nueva Cotización</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col space-y-2">
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col space-y-2"
+                onClick={() => setClienteDrawerOpen(true)}
+              >
                 <Users className="h-6 w-6" />
                 <span className="text-sm">Agregar Cliente</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col space-y-2">
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col space-y-2"
+                onClick={() => setServicioDrawerOpen(true)}
+              >
                 <Wrench className="h-6 w-6" />
                 <span className="text-sm">Orden Servicio</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col space-y-2">
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col space-y-2"
+                onClick={() => setDespachoDrawerOpen(true)}
+              >
                 <Truck className="h-6 w-6" />
                 <span className="text-sm">Nuevo Despacho</span>
               </Button>
@@ -290,6 +319,47 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Drawers and Wizards */}
+      <TareaDrawer
+        open={tareaDrawerOpen}
+        onOpenChange={setTareaDrawerOpen}
+        onSuccess={() => {
+          // Refresh data if needed
+        }}
+      />
+
+      <ClienteDrawer
+        open={clienteDrawerOpen}
+        onOpenChange={setClienteDrawerOpen}
+        onSuccess={() => {
+          // Refresh data if needed
+        }}
+      />
+
+      <CotizacionWizard
+        open={cotizacionWizardOpen}
+        onOpenChange={setCotizacionWizardOpen}
+        onSuccess={(cotizacionId) => {
+          navigate(`/cotizaciones/${cotizacionId}`);
+        }}
+      />
+
+      <ServicioTecnicoDrawer
+        open={servicioDrawerOpen}
+        onOpenChange={setServicioDrawerOpen}
+        onSuccess={() => {
+          // Refresh data if needed
+        }}
+      />
+
+      <DespachoDrawer
+        open={despachoDrawerOpen}
+        onOpenChange={setDespachoDrawerOpen}
+        onSuccess={() => {
+          // Refresh data if needed
+        }}
+      />
     </Layout>
   );
 }
