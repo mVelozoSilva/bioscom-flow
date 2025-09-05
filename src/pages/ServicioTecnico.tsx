@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BioscomLayout } from '@/components/bioscom/layout';
+import { Layout as BioscomLayout } from '@/components/bioscom/layout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -340,7 +340,16 @@ export default function ServicioTecnico() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setServicios(data || []);
+      setServicios((data || []).map(item => {
+        const { user_profiles, ...cleanItem } = item;
+        return {
+          ...cleanItem,
+          tipo: item.tipo as 'correctivo' | 'preventivo' | 'instalacion' | 'capacitacion',
+          prioridad: item.prioridad?.toLowerCase() as 'baja' | 'media' | 'alta' | 'urgente',
+          estado: item.estado?.toLowerCase() as 'pendiente' | 'asignado' | 'en_proceso' | 'completado' | 'cancelado',
+          origen: item.origen?.toLowerCase() as 'whatsapp' | 'preventivo' | 'telefono' | 'email' | 'presencial'
+        };
+      }));
     } catch (error: any) {
       toast({
         title: "Error",
@@ -434,14 +443,22 @@ export default function ServicioTecnico() {
         .single();
 
       if (informeExistente) {
-        setInformeActual(informeExistente);
+        setInformeActual({
+          ...informeExistente,
+          materiales_utilizados: Array.isArray(informeExistente.materiales_utilizados) 
+            ? informeExistente.materiales_utilizados 
+            : [],
+          estado_informe: informeExistente.estado_informe as 'borrador' | 'finalizado' | 'enviado'
+        });
         setInformeData({
           diagnostico: informeExistente.diagnostico || '',
           acciones: informeExistente.acciones || '',
           recomendaciones: informeExistente.recomendaciones || '',
           observaciones: informeExistente.observaciones || '',
           tiempo_total_horas: informeExistente.tiempo_total_horas?.toString() || '',
-          materiales_utilizados: informeExistente.materiales_utilizados || []
+          materiales_utilizados: Array.isArray(informeExistente.materiales_utilizados) 
+            ? informeExistente.materiales_utilizados 
+            : []
         });
       } else {
         // Crear nuevo informe
@@ -461,7 +478,13 @@ export default function ServicioTecnico() {
 
         if (error) throw error;
         
-        setInformeActual(nuevoInforme);
+        setInformeActual({
+          ...nuevoInforme,
+          materiales_utilizados: Array.isArray(nuevoInforme.materiales_utilizados) 
+            ? nuevoInforme.materiales_utilizados 
+            : [],
+          estado_informe: nuevoInforme.estado_informe as 'borrador' | 'finalizado' | 'enviado'
+        });
         setInformeData({
           diagnostico: '',
           acciones: '',
@@ -573,7 +596,7 @@ export default function ServicioTecnico() {
   };
 
   return (
-    <BioscomLayout title="Servicio Técnico">
+    <BioscomLayout>
       <div className="space-y-6">
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

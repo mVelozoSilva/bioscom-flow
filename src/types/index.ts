@@ -166,12 +166,16 @@ export interface Cobranza {
 export interface HistorialGestion {
   id: string;
   factura_id: string;
+  cobranza_id: string;
   responsable: string;
   fecha: Date;
   tipo: 'llamada' | 'correo' | 'visita' | 'whatsapp';
   resultado: 'Contactado' | 'No contactado' | 'Compromiso' | 'Rechazo';
   comentario: string;
   proxima_accion?: Date;
+  adjuntos: any[];
+  user_id: string;
+  proxima_accion_at?: string;
   created_at: Date;
 }
 
@@ -189,18 +193,24 @@ export interface Pago {
 
 export interface ServicioTecnico {
   id: string;
-  tipo: 'Correctivo' | 'Preventivo';
+  tipo: 'correctivo' | 'preventivo' | 'instalacion' | 'capacitacion';
   cliente_id: string;
   equipo: string;
-  prioridad: 'Baja' | 'Media' | 'Alta' | 'Urgente';
-  origen: 'Cliente' | 'Preventivo' | 'Garantía' | 'Venta';
-  estado: 'Pendiente' | 'En Proceso' | 'En Espera' | 'Finalizado';
+  prioridad: 'baja' | 'media' | 'alta' | 'urgente';
+  origen: 'whatsapp' | 'preventivo' | 'telefono' | 'email' | 'presencial';
+  estado: 'pendiente' | 'asignado' | 'en_proceso' | 'completado' | 'cancelado';
   descripcion: string;
   solucion?: string;
   tecnico_asignado?: string;
-  fecha_programada?: Date;
-  fecha_inicio?: Date;
-  fecha_fin?: Date;
+  contacto_cliente?: string;
+  telefono_contacto?: string;
+  direccion_servicio?: string;
+  observaciones_cliente?: string;
+  costo_estimado?: number;
+  costo_real?: number;
+  fecha_programada?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -210,6 +220,14 @@ export interface InformeTecnico {
   servicio_id: string;
   observaciones: string;
   firma_cliente?: string;
+  firma_tecnico?: string;
+  materiales_utilizados: any[];
+  tiempo_total_horas: number;
+  diagnostico: string;
+  acciones: string;
+  estado_informe: 'borrador' | 'finalizado' | 'enviado';
+  fecha_servicio: string;
+  cliente_nombre: string;
   adjuntos: string[];
   qr_validacion: string;
   pdf_generado?: string;
@@ -217,13 +235,21 @@ export interface InformeTecnico {
   created_at: Date;
 }
 
-export interface Inventario {
+export interface InventarioItem {
   id: string;
   producto_id: string;
+  codigo_producto: string;
+  nombre_producto: string;
   stock_actual: number;
   stock_minimo: number;
+  stock_disponible: number;
+  stock_comprometido: number;
+  costo_promedio: number;
   ubicacion: string;
-  ultimo_movimiento: Date;
+  linea_negocio: string;
+  proveedor: string;
+  estado: 'activo' | 'descontinuado' | 'agotado';
+  ultimo_movimiento: string;
   created_at: Date;
   updated_at: Date;
 }

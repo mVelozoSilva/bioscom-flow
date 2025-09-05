@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BioscomLayout } from '@/components/bioscom/layout';
+import { Layout as BioscomLayout } from '@/components/bioscom/layout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -234,7 +234,11 @@ export default function Inventario() {
         .order('nombre_producto', { ascending: true });
 
       if (error) throw error;
-      setInventario(data || []);
+      setInventario((data || []).map(item => ({
+        ...item,
+        estado: item.estado as 'activo' | 'descontinuado' | 'agotado',
+        ultimo_movimiento: item.updated_at
+      })));
     } catch (error: any) {
       toast({
         title: "Error",
@@ -403,7 +407,7 @@ Es necesario realizar una reposición urgente.
   };
 
   return (
-    <BioscomLayout title="Inventario">
+    <BioscomLayout>
       <div className="space-y-6">
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

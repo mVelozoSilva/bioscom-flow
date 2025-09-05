@@ -2,7 +2,7 @@
 
 import { 
   Usuario, Cliente, Producto, Cotizacion, Tarea, Seguimiento, 
-  Factura, ServicioTecnico, Despacho, Inventario 
+  Factura, ServicioTecnico, Despacho, InventarioItem 
 } from '@/types';
 import { generateValidRut } from '@/lib/rut-validator';
 
@@ -431,30 +431,30 @@ export const facturasSeed: Factura[] = [
 export const serviciosTecnicosSeed: ServicioTecnico[] = [
   {
     id: '1',
-    tipo: 'Preventivo',
+    tipo: 'preventivo',
     cliente_id: '3',
     equipo: 'Monitor MSV-2000 S/N: 12345',
-    prioridad: 'Media',
-    origen: 'Preventivo',
-    estado: 'Pendiente',
+    prioridad: 'media',
+    origen: 'preventivo',
+    estado: 'pendiente',
     descripcion: 'Mantención preventiva trimestral programada',
     tecnico_asignado: '4',
-    fecha_programada: new Date('2024-12-20'),
+    fecha_programada: '2024-12-20',
     created_at: new Date('2024-11-01'),
     updated_at: new Date('2024-11-01')
   },
   {
     id: '2',
-    tipo: 'Correctivo',
+    tipo: 'correctivo',
     cliente_id: '1',
     equipo: 'Desfibrilador AED Plus S/N: 67890',
-    prioridad: 'Urgente',
-    origen: 'Cliente',
-    estado: 'En Proceso',
+    prioridad: 'urgente',
+    origen: 'telefono',
+    estado: 'en_proceso',
     descripcion: 'Falla en pantalla, no enciende',
     solucion: 'Reemplazo de módulo de alimentación en proceso',
     tecnico_asignado: '4',
-    fecha_inicio: new Date('2024-12-02'),
+    fecha_inicio: '2024-12-02',
     created_at: new Date('2024-12-01'),
     updated_at: new Date('2024-12-02')
   }
@@ -486,44 +486,76 @@ export const despachosSeed: Despacho[] = [
 ];
 
 // Inventario seed
-export const inventarioSeed: Inventario[] = [
+export const inventarioSeed: InventarioItem[] = [
   {
     id: '1',
     producto_id: '1',
+    codigo_producto: 'MON-001',
+    nombre_producto: 'Monitor MSV-2000',
     stock_actual: 5,
     stock_minimo: 2,
+    stock_disponible: 5,
+    stock_comprometido: 0,
+    costo_promedio: 850000,
     ubicacion: 'Bodega A - Estante 1',
-    ultimo_movimiento: new Date('2024-11-15'),
+    linea_negocio: 'Monitores',
+    proveedor: 'Biosys Medical',
+    estado: 'activo',
+    ultimo_movimiento: '2024-11-15',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-11-15')
   },
   {
     id: '2',
     producto_id: '2',
+    codigo_producto: 'DEF-002',
+    nombre_producto: 'Desfibrilador AED Plus',
     stock_actual: 3,
     stock_minimo: 1,
+    stock_disponible: 3,
+    stock_comprometido: 0,
+    costo_promedio: 1200000,
     ubicacion: 'Bodega A - Estante 2',
-    ultimo_movimiento: new Date('2024-11-10'),
+    linea_negocio: 'Emergencia',
+    proveedor: 'Zoll Medical',
+    estado: 'activo',
+    ultimo_movimiento: '2024-11-10',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-11-10')
   },
   {
     id: '3',
     producto_id: '3',
+    codigo_producto: 'VEN-003',
+    nombre_producto: 'Ventilador Mecánico V60',
     stock_actual: 1,
     stock_minimo: 1,
+    stock_disponible: 1,
+    stock_comprometido: 0,
+    costo_promedio: 2500000,
     ubicacion: 'Bodega B - Área Especial',
-    ultimo_movimiento: new Date('2024-11-10'),
+    linea_negocio: 'Respiratorio',
+    proveedor: 'Philips Healthcare',
+    estado: 'activo',
+    ultimo_movimiento: '2024-11-10',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-11-10')
   },
   {
     id: '4',
     producto_id: '4',
+    codigo_producto: 'ECG-004',
+    nombre_producto: 'Electrocardiografo 12 canales',
     stock_actual: 8,
     stock_minimo: 3,
+    stock_disponible: 8,
+    stock_comprometido: 0,
+    costo_promedio: 650000,
     ubicacion: 'Bodega A - Estante 3',
-    ultimo_movimiento: new Date('2024-11-20'),
+    linea_negocio: 'Cardiología',
+    proveedor: 'Biocare Medical',
+    estado: 'activo',
+    ultimo_movimiento: '2024-11-20',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-11-20')
   }

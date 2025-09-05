@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BioscomLayout } from '@/components/bioscom/layout';
+import { Layout as BioscomLayout } from '@/components/bioscom/layout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -272,7 +272,13 @@ export default function Cobranzas() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setHistorial(data || []);
+      setHistorial((data || []).map(item => ({
+        ...item,
+        adjuntos: Array.isArray(item.adjuntos) ? item.adjuntos : [],
+        fecha: new Date(item.created_at),
+        responsable: item.user_id,
+        proxima_accion: item.proxima_accion_at ? new Date(item.proxima_accion_at) : undefined
+      })));
     } catch (error: any) {
       toast({
         title: "Error",
@@ -375,7 +381,7 @@ Bioscom Chile`;
   };
 
   return (
-    <BioscomLayout title="Cobranzas">
+    <BioscomLayout>
       <div className="space-y-6">
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
