@@ -18,6 +18,14 @@ import Cobranzas from "./pages/Cobranzas";
 import ServicioTecnico from "./pages/ServicioTecnico";
 import Inventario from "./pages/Inventario";
 import NotFound from "./pages/NotFound";
+import MiDiaSemana from "./pages/MiDiaSemana";
+import Facturas from "./pages/Facturas";
+import Pagos from "./pages/Pagos";
+import Mantenciones from "./pages/Mantenciones";
+import HistorialServicios from "./pages/HistorialServicios";
+import Despachos from "./pages/Despachos";
+import Usuarios from "./pages/Usuarios";
+import NotAllowed from "./pages/NotAllowed";
 
 const queryClient = new QueryClient();
 
@@ -67,14 +75,19 @@ const App = () => (
                 <Cobranzas />
               </ProtectedRoute>
             } />
+            <Route path="/mi-dia/semana" element={
+              <ProtectedRoute>
+                <MiDiaSemana />
+              </ProtectedRoute>
+            } />
             <Route path="/facturas" element={
               <ProtectedRoute>
-                <Cobranzas />
+                <Facturas />
               </ProtectedRoute>
             } />
             <Route path="/pagos" element={
               <ProtectedRoute>
-                <Cobranzas />
+                <Pagos />
               </ProtectedRoute>
             } />
             <Route path="/servicio-tecnico" element={
@@ -84,12 +97,12 @@ const App = () => (
             } />
             <Route path="/mantenciones" element={
               <ProtectedRoute>
-                <ServicioTecnico />
+                <Mantenciones />
               </ProtectedRoute>
             } />
             <Route path="/historial-servicios" element={
               <ProtectedRoute>
-                <ServicioTecnico />
+                <HistorialServicios />
               </ProtectedRoute>
             } />
             <Route path="/inventario" element={
@@ -99,7 +112,7 @@ const App = () => (
             } />
             <Route path="/despachos" element={
               <ProtectedRoute>
-                <Inventario />
+                <Despachos />
               </ProtectedRoute>
             } />
             <Route path="/dashboard-ejecutivo" element={
@@ -108,10 +121,13 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/usuarios" element={
-              <ProtectedRoute>
-                <Dashboard />
+              <ProtectedRoute requiredRoles={['admin']}>
+                <Usuarios />
               </ProtectedRoute>
             } />
+            
+            {/* Error pages */}
+            <Route path="/403" element={<NotAllowed />} />
             
             {/* Catch all route */}
             <Route path="*" element={<NotFound />} />
