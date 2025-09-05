@@ -8,6 +8,7 @@ import Clientes from "./pages/Clientes";
 import Cotizaciones from "./pages/Cotizaciones";
 import Tareas from "./pages/Tareas";
 import Seguimientos from "./pages/Seguimientos";
+import Productos from "./pages/Productos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,7 +25,7 @@ const App = () => (
           <Route path="/cotizaciones" element={<Cotizaciones />} />
           <Route path="/tareas" element={<Tareas />} />
           <Route path="/seguimientos" element={<Seguimientos />} />
-          <Route path="/productos" element={<Dashboard />} />
+          <Route path="/productos" element={<Productos />} />
           <Route path="/cobranzas" element={<Dashboard />} />
           <Route path="/facturas" element={<Dashboard />} />
           <Route path="/pagos" element={<Dashboard />} />
