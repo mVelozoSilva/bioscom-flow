@@ -48,7 +48,7 @@ export default function Clientes() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [filtrosAvanzadosOpen, setFiltrosAvanzadosOpen] = useState(false);
   const [filtroAvanzado, setFiltroAvanzado] = useState({
-    tipo: '',
+    tipo: 'todos',
     vendedor: '',
     fechaCreacion: ''
   });
@@ -80,7 +80,7 @@ export default function Clientes() {
     }
 
     // Aplicar filtros avanzados
-    if (filtroAvanzado.tipo) {
+    if (filtroAvanzado.tipo && filtroAvanzado.tipo !== 'todos') {
       resultado = resultado.filter(c => c.tipo === filtroAvanzado.tipo);
     }
 
@@ -358,7 +358,7 @@ export default function Clientes() {
                         <SelectValue placeholder="Seleccionar tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="todos">Todos</SelectItem>
                         <SelectItem value="Público">Público</SelectItem>
                         <SelectItem value="Privado">Privado</SelectItem>
                         <SelectItem value="Revendedor">Revendedor</SelectItem>
