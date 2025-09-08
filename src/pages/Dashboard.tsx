@@ -4,6 +4,7 @@ import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import {
   Calendar,
   CheckCircle,
@@ -27,11 +28,28 @@ import { DespachoDrawer } from '@/components/drawers/DespachoDrawer';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tareaDrawerOpen, setTareaDrawerOpen] = useState(false);
   const [clienteDrawerOpen, setClienteDrawerOpen] = useState(false);
   const [cotizacionWizardOpen, setCotizacionWizardOpen] = useState(false);
   const [servicioDrawerOpen, setServicioDrawerOpen] = useState(false);
   const [despachoDrawerOpen, setDespachoDrawerOpen] = useState(false);
+
+  const handleNavigateWithFallback = (route: string, fallbackAction?: () => void) => {
+    try {
+      navigate(route);
+    } catch (error) {
+      if (fallbackAction) {
+        fallbackAction();
+      } else {
+        toast({
+          title: "Función en desarrollo",
+          description: `La página ${route} estará disponible próximamente.`,
+          variant: "default"
+        });
+      }
+    }
+  };
 
   // Datos para Mi Día
   const tareasHoy = tareasSeed.filter(tarea => {
@@ -97,7 +115,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => navigate('/mi-dia/semana')}>
+            <Button variant="outline" onClick={() => handleNavigateWithFallback('/mi-dia/semana')}>
               <Calendar className="h-4 w-4 mr-2" />
               Ver Semana
             </Button>

@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
   FileText, 
@@ -16,13 +20,117 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  DollarSign
+  DollarSign,
+  Edit,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Cotizacion } from '@/types';
 import { cotizacionesSeed, clientesSeed, productosSeed } from '@/data/seeds';
 
+type FilterType = 'todas' | 'pendientes' | 'enviadas' | 'por-vencer' | 'score-alto' | 'monto-alto' | 'rechazadas';
+
 export default function Cotizaciones() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [cotizaciones] = useState<Cotizacion[]>(cotizacionesSeed);
+  const [filtroActivo, setFiltroActivo] = useState<FilterType>('todas');
+  const [cotizacionWizardOpen, setCotizacionWizardOpen] = useState(false);
+  const [enviarDialogOpen, setEnviarDialogOpen] = useState(false);
+  const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState<Cotizacion | null>(null);
+
+  // Filtrar cotizaciones
+  const cotizacionesFiltradas = useMemo(() => {
+    let resultado = [...cotizaciones];
+
+    switch (filtroActivo) {
+      case 'pendientes':
+        resultado = resultado.filter(c => c.estado === 'Pendiente');
+        break;
+      case 'enviadas':
+        resultado = resultado.filter(c => c.estado === 'Enviada');
+        break;
+      case 'por-vencer':
+        resultado = resultado.filter(c => {
+          const diasRestantes = Math.ceil((new Date(c.fecha_expiracion).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          return diasRestantes <= 7 && diasRestantes > 0;
+        });
+        break;
+      case 'score-alto':
+        resultado = resultado.filter(c => c.score >= 80);
+        break;
+      case 'monto-alto':
+        resultado = resultado.filter(c => {
+          const monto = c.productos.reduce((sum, p) => sum + p.total_linea, 0);
+          return monto >= 1000000;
+        });
+        break;
+      case 'rechazadas':
+        resultado = resultado.filter(c => c.estado === 'Rechazada');
+        break;
+    }
+
+    return resultado;
+  }, [cotizaciones, filtroActivo]);
+
+  const descargarPDF = (cotizacion: Cotizacion) => {
+    toast({
+      title: "Generando PDF",
+      description: "La descarga comenzará en breve.",
+    });
+    // TODO: Implementar generación de PDF
+  };
+
+  const enviarCotizacion = (cotizacion: Cotizacion) => {
+    setCotizacionSeleccionada(cotizacion);
+    setEnviarDialogOpen(true);
+  };
+
+  const confirmarEnvio = () => {
+    if (cotizacionSeleccionada) {
+      const cliente = clientesSeed.find(c => c.id === cotizacionSeleccionada.cliente_id);
+      // Simular envío por email
+      window.open(`mailto:${cliente?.nombre}@example.com?subject=Cotización ${cotizacionSeleccionada.codigo}&body=Adjunto encontrará la cotización solicitada.`);
+      
+      toast({
+        title: "Cotización enviada",
+        description: `Se ha enviado la cotización ${cotizacionSeleccionada.codigo}`,
+      });
+      setEnviarDialogOpen(false);
+    }
+  };
+
+  const copiarCotizacion = async (cotizacion: Cotizacion) => {
+    try {
+      // TODO: Implementar duplicación en Supabase
+      toast({
+        title: "Cotización duplicada",
+        description: "Se ha creado una copia con nuevo código.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo duplicar la cotización.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const eliminarCotizacion = async (cotizacion: Cotizacion) => {
+    try {
+      // TODO: Implementar eliminación en Supabase
+      toast({
+        title: "Cotización eliminada",
+        description: `La cotización ${cotizacion.codigo} ha sido eliminada.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la cotización.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -127,20 +235,58 @@ export default function Cotizaciones() {
     {
       id: 'actions',
       cell: ({ row }) => {
+        const cotizacion = row.original;
         return (
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => descargarPDF(cotizacion)}
+              title="Descargar PDF"
+            >
               <Download className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => enviarCotizacion(cotizacion)}
+              title="Enviar por email"
+            >
               <Send className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => copiarCotizacion(cotizacion)}
+              title="Duplicar cotización"
+            >
               <Copy className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate(`/cotizaciones/${cotizacion.id}`)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Ver detalle
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate(`/cotizaciones/${cotizacion.id}/editar`)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => eliminarCotizacion(cotizacion)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         );
       },
@@ -148,13 +294,13 @@ export default function Cotizaciones() {
   ];
 
   const estadisticas = {
-    total: cotizaciones.length,
-    pendientes: cotizaciones.filter(c => c.estado === 'Pendiente' || c.estado === 'Enviada').length,
-    aceptadas: cotizaciones.filter(c => c.estado === 'Aceptada').length,
-    montoTotal: cotizaciones.reduce((sum, c) => 
+    total: cotizacionesFiltradas.length,
+    pendientes: cotizacionesFiltradas.filter(c => c.estado === 'Pendiente' || c.estado === 'Enviada').length,
+    aceptadas: cotizacionesFiltradas.filter(c => c.estado === 'Aceptada').length,
+    montoTotal: cotizacionesFiltradas.reduce((sum, c) => 
       sum + c.productos.reduce((pSum, p) => pSum + p.total_linea, 0), 0
     ),
-    scorePromedio: Math.round(cotizaciones.reduce((acc, c) => acc + c.score, 0) / cotizaciones.length),
+    scorePromedio: cotizacionesFiltradas.length > 0 ? Math.round(cotizacionesFiltradas.reduce((acc, c) => acc + c.score, 0) / cotizacionesFiltradas.length) : 0,
   };
 
   return (
@@ -168,7 +314,7 @@ export default function Cotizaciones() {
               Gestión de cotizaciones y propuestas comerciales
             </p>
           </div>
-          <Button>
+          <Button onClick={() => setCotizacionWizardOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nueva Cotización
           </Button>
@@ -265,13 +411,24 @@ export default function Cotizaciones() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm">Todas</Button>
-              <Button variant="outline" size="sm">Pendientes</Button>
-              <Button variant="outline" size="sm">Enviadas</Button>
-              <Button variant="outline" size="sm">Por vencer (7 días)</Button>
-              <Button variant="outline" size="sm">Score alto (80+)</Button>
-              <Button variant="outline" size="sm">Monto alto (+$1M)</Button>
-              <Button variant="outline" size="sm">Rechazadas</Button>
+              {([
+                { key: 'todas', label: 'Todas' },
+                { key: 'pendientes', label: 'Pendientes' },
+                { key: 'enviadas', label: 'Enviadas' },
+                { key: 'por-vencer', label: 'Por vencer (7 días)' },
+                { key: 'score-alto', label: 'Score alto (80+)' },
+                { key: 'monto-alto', label: 'Monto alto (+$1M)' },
+                { key: 'rechazadas', label: 'Rechazadas' },
+              ] as const).map(filtro => (
+                <Button 
+                  key={filtro.key}
+                  variant={filtroActivo === filtro.key ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setFiltroActivo(filtro.key)}
+                >
+                  {filtro.label}
+                </Button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -281,18 +438,53 @@ export default function Cotizaciones() {
           <CardHeader>
             <CardTitle>Lista de Cotizaciones</CardTitle>
             <CardDescription>
-              {cotizaciones.length} cotizaciones en el sistema
+              {cotizacionesFiltradas.length} cotizaciones {filtroActivo !== 'todas' ? 'filtradas' : 'en el sistema'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable 
               columns={columns} 
-              data={cotizaciones}
+              data={cotizacionesFiltradas}
               searchKey="codigo"
               searchPlaceholder="Buscar por código, cliente..."
             />
           </CardContent>
         </Card>
+
+        {/* Dialog para enviar cotización */}
+        <Dialog open={enviarDialogOpen} onOpenChange={setEnviarDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enviar Cotización</DialogTitle>
+              <DialogDescription>
+                ¿Está seguro que desea enviar la cotización {cotizacionSeleccionada?.codigo}?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setEnviarDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmarEnvio}>
+                Enviar por Email
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* TODO: Implementar CotizacionWizard */}
+        {cotizacionWizardOpen && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-card p-6 rounded-lg shadow-lg max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Wizard de Cotización</h3>
+              <p className="text-muted-foreground mb-4">
+                El wizard completo estará disponible próximamente.
+              </p>
+              <Button onClick={() => setCotizacionWizardOpen(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

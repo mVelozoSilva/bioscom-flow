@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
   Phone, 
@@ -15,13 +24,73 @@ import {
   Clock,
   MoreHorizontal,
   TrendingUp,
-  Users
+  Users,
+  Edit,
+  PhoneCall,
+  X
 } from 'lucide-react';
 import { Seguimiento } from '@/types';
 import { seguimientosSeed, clientesSeed, usuariosSeed } from '@/data/seeds';
 
+type FilterType = 'todos' | 'hoy' | 'vencidos' | 'esta-semana';
+
 export default function Seguimientos() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [seguimientos] = useState<Seguimiento[]>(seguimientosSeed);
+  const [filtroActivo, setFiltroActivo] = useState<FilterType>('todos');
+  const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
+  const [llamadaDialogOpen, setLlamadaDialogOpen] = useState(false);
+  const [seguimientoSeleccionado, setSeguimientoSeleccionado] = useState<Seguimiento | null>(null);
+  const [vistaAgenda, setVistaAgenda] = useState(false);
+
+  // Filtrar seguimientos
+  const seguimientosFiltrados = useMemo(() => {
+    let resultado = [...seguimientos];
+    const hoy = new Date();
+    const inicioSemana = new Date(hoy);
+    inicioSemana.setDate(hoy.getDate() - hoy.getDay());
+
+    switch (filtroActivo) {
+      case 'hoy':
+        resultado = resultado.filter(s => {
+          const fecha = new Date(s.proxima_gestion);
+          return fecha.toDateString() === hoy.toDateString();
+        });
+        break;
+      case 'vencidos':
+        resultado = resultado.filter(s => {
+          const fecha = new Date(s.proxima_gestion);
+          return fecha < hoy;
+        });
+        break;
+      case 'esta-semana':
+        const finSemana = new Date(inicioSemana);
+        finSemana.setDate(inicioSemana.getDate() + 7);
+        resultado = resultado.filter(s => {
+          const fecha = new Date(s.proxima_gestion);
+          return fecha >= inicioSemana && fecha <= finSemana;
+        });
+        break;
+    }
+
+    return resultado;
+  }, [seguimientos, filtroActivo]);
+
+  const abrirLlamada = (seguimiento: Seguimiento) => {
+    setSeguimientoSeleccionado(seguimiento);
+    setLlamadaDialogOpen(true);
+  };
+
+  const registrarLlamada = () => {
+    if (seguimientoSeleccionado) {
+      toast({
+        title: "Llamada registrada",
+        description: "Se ha registrado la gestión telefónica.",
+      });
+      setLlamadaDialogOpen(false);
+    }
+  };
 
   const getPriorityColor = (prioridad: string) => {
     switch (prioridad) {
@@ -167,14 +236,42 @@ export default function Seguimientos() {
     {
       id: 'actions',
       cell: ({ row }) => {
+        const seguimiento = row.original;
         return (
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm" title="Llamar">
-              <Phone className="h-4 w-4" />
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => abrirLlamada(seguimiento)}
+              title="Registrar llamada"
+            >
+              <PhoneCall className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setSeguimientoSeleccionado(seguimiento);
+                  setSeguimientoDrawerOpen(true);
+                }}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  toast({
+                    title: "Seguimiento completado",
+                    description: "El seguimiento ha sido marcado como completado.",
+                  });
+                }}>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Completar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         );
       },
@@ -208,11 +305,14 @@ export default function Seguimientos() {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => setVistaAgenda(!vistaAgenda)}
+            >
               <Calendar className="h-4 w-4 mr-2" />
-              Mi Agenda
+              {vistaAgenda ? 'Vista Lista' : 'Mi Agenda'}
             </Button>
-            <Button>
+            <Button onClick={() => setSeguimientoDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Seguimiento
             </Button>

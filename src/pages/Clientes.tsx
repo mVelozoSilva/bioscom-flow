@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
   Users, 
@@ -16,13 +24,94 @@ import {
   Mail,
   MapPin,
   Star,
-  TrendingUp
+  TrendingUp,
+  Eye,
+  Edit,
+  FileText,
+  ListTodo,
+  Trash2,
+  PhoneCall,
+  X
 } from 'lucide-react';
 import { Cliente } from '@/types';
 import { clientesSeed } from '@/data/seeds';
 
+type FilterType = 'todos' | 'publicos' | 'privados' | 'revendedores' | 'score-alto' | 'nuevos' | 'sin-interaccion';
+
 export default function Clientes() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [clientes] = useState<Cliente[]>(clientesSeed);
+  const [filtroActivo, setFiltroActivo] = useState<FilterType>('todos');
+  const [clienteDrawerOpen, setClienteDrawerOpen] = useState(false);
+  const [clienteDetalleOpen, setClienteDetalleOpen] = useState(false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [filtrosAvanzadosOpen, setFiltrosAvanzadosOpen] = useState(false);
+  const [filtroAvanzado, setFiltroAvanzado] = useState({
+    tipo: '',
+    vendedor: '',
+    fechaCreacion: ''
+  });
+
+  // Filtrar clientes basado en filtros activos
+  const clientesFiltrados = useMemo(() => {
+    let resultado = [...clientes];
+
+    // Aplicar filtro rápido
+    switch (filtroActivo) {
+      case 'publicos':
+        resultado = resultado.filter(c => c.tipo === 'Público');
+        break;
+      case 'privados':
+        resultado = resultado.filter(c => c.tipo === 'Privado');
+        break;
+      case 'revendedores':
+        resultado = resultado.filter(c => c.tipo === 'Revendedor');
+        break;
+      case 'score-alto':
+        resultado = resultado.filter(c => c.score >= 80);
+        break;
+      case 'nuevos':
+        resultado = resultado.filter(c => c.estado_relacional === 'Nuevo');
+        break;
+      case 'sin-interaccion':
+        resultado = resultado.filter(c => !c.last_interaction_at);
+        break;
+    }
+
+    // Aplicar filtros avanzados
+    if (filtroAvanzado.tipo) {
+      resultado = resultado.filter(c => c.tipo === filtroAvanzado.tipo);
+    }
+
+    return resultado;
+  }, [clientes, filtroActivo, filtroAvanzado]);
+
+  const abrirDetalleCliente = (cliente: Cliente) => {
+    setClienteSeleccionado(cliente);
+    setClienteDetalleOpen(true);
+  };
+
+  const editarCliente = (cliente: Cliente) => {
+    setClienteSeleccionado(cliente);
+    setClienteDrawerOpen(true);
+  };
+
+  const eliminarCliente = async (cliente: Cliente) => {
+    try {
+      // TODO: Implementar eliminación en Supabase
+      toast({
+        title: "Cliente eliminado",
+        description: `${cliente.nombre} ha sido eliminado correctamente.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el cliente.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
@@ -135,20 +224,56 @@ export default function Clientes() {
     {
       id: 'actions',
       cell: ({ row }) => {
+        const cliente = row.original;
         return (
-          <Button variant="ghost" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => abrirDetalleCliente(cliente)}>
+                <Eye className="mr-2 h-4 w-4" />
+                Ver detalles
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editarCliente(cliente)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate(`/cotizaciones?cliente=${cliente.id}`)}>
+                <FileText className="mr-2 h-4 w-4" />
+                Ver cotizaciones
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/tareas?cliente=${cliente.id}`)}>
+                <ListTodo className="mr-2 h-4 w-4" />
+                Ver tareas
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/seguimientos?cliente=${cliente.id}`)}>
+                <PhoneCall className="mr-2 h-4 w-4" />
+                Ver seguimientos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => eliminarCliente(cliente)}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
   ];
 
   const estadisticas = {
-    total: clientes.length,
-    nuevos: clientes.filter(c => c.estado_relacional === 'Nuevo').length,
-    activos: clientes.filter(c => c.estado_relacional === 'Activo').length,
-    scorePromedio: Math.round(clientes.reduce((acc, c) => acc + c.score, 0) / clientes.length),
+    total: clientesFiltrados.length,
+    nuevos: clientesFiltrados.filter(c => c.estado_relacional === 'Nuevo').length,
+    activos: clientesFiltrados.filter(c => c.estado_relacional === 'Activo').length,
+    scorePromedio: clientesFiltrados.length > 0 ? Math.round(clientesFiltrados.reduce((acc, c) => acc + c.score, 0) / clientesFiltrados.length) : 0,
   };
 
   return (
@@ -162,7 +287,7 @@ export default function Clientes() {
               Gestión de clientes y relaciones comerciales
             </p>
           </div>
-          <Button>
+          <Button onClick={() => setClienteDrawerOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Cliente
           </Button>
@@ -215,18 +340,58 @@ export default function Clientes() {
 
         {/* Filtros rápidos */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-lg">Filtros Rápidos</CardTitle>
+            <Popover open={filtrosAvanzadosOpen} onOpenChange={setFiltrosAvanzadosOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros Avanzados
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="tipo">Tipo de Cliente</Label>
+                    <Select value={filtroAvanzado.tipo} onValueChange={(value) => setFiltroAvanzado(prev => ({ ...prev, tipo: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="Público">Público</SelectItem>
+                        <SelectItem value="Privado">Privado</SelectItem>
+                        <SelectItem value="Revendedor">Revendedor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={() => setFiltrosAvanzadosOpen(false)} className="w-full">
+                    Aplicar Filtros
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm">Todos</Button>
-              <Button variant="outline" size="sm">Públicos</Button>
-              <Button variant="outline" size="sm">Privados</Button>
-              <Button variant="outline" size="sm">Revendedores</Button>
-              <Button variant="outline" size="sm">Score Alto (80+)</Button>
-              <Button variant="outline" size="sm">Nuevos</Button>
-              <Button variant="outline" size="sm">Sin interacción reciente</Button>
+              {([
+                { key: 'todos', label: 'Todos' },
+                { key: 'publicos', label: 'Públicos' },
+                { key: 'privados', label: 'Privados' },
+                { key: 'revendedores', label: 'Revendedores' },
+                { key: 'score-alto', label: 'Score Alto (80+)' },
+                { key: 'nuevos', label: 'Nuevos' },
+                { key: 'sin-interaccion', label: 'Sin interacción reciente' },
+              ] as const).map(filtro => (
+                <Button 
+                  key={filtro.key}
+                  variant={filtroActivo === filtro.key ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setFiltroActivo(filtro.key)}
+                >
+                  {filtro.label}
+                </Button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -236,19 +401,210 @@ export default function Clientes() {
           <CardHeader>
             <CardTitle>Lista de Clientes</CardTitle>
             <CardDescription>
-              {clientes.length} clientes registrados en el sistema
+              {clientesFiltrados.length} clientes {filtroActivo !== 'todos' ? 'filtrados' : 'registrados'} en el sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable 
               columns={columns} 
-              data={clientes}
+              data={clientesFiltrados}
               searchKey="nombre"
               searchPlaceholder="Buscar por nombre, RUT o contacto..."
             />
           </CardContent>
         </Card>
+
+        {/* Cliente Drawer para crear/editar */}
+        <Sheet open={clienteDrawerOpen} onOpenChange={setClienteDrawerOpen}>
+          <SheetContent className="w-[400px] sm:w-[540px]">
+            <SheetHeader>
+              <SheetTitle>{clienteSeleccionado ? 'Editar Cliente' : 'Nuevo Cliente'}</SheetTitle>
+              <SheetDescription>
+                {clienteSeleccionado ? 'Modifica los datos del cliente seleccionado.' : 'Completa los datos para crear un nuevo cliente.'}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="py-6">
+              <ClienteForm 
+                cliente={clienteSeleccionado} 
+                onSuccess={() => {
+                  setClienteDrawerOpen(false);
+                  setClienteSeleccionado(null);
+                  toast({
+                    title: clienteSeleccionado ? "Cliente actualizado" : "Cliente creado",
+                    description: "Los datos se han guardado correctamente.",
+                  });
+                }}
+                onCancel={() => {
+                  setClienteDrawerOpen(false);
+                  setClienteSeleccionado(null);
+                }}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Cliente Detalle Sheet */}
+        <Sheet open={clienteDetalleOpen} onOpenChange={setClienteDetalleOpen}>
+          <SheetContent className="w-[600px] sm:w-[700px]">
+            <SheetHeader>
+              <SheetTitle>Detalle de Cliente</SheetTitle>
+              <SheetDescription>
+                Información completa y actividades del cliente
+              </SheetDescription>
+            </SheetHeader>
+            {clienteSeleccionado && (
+              <ClienteDetalle cliente={clienteSeleccionado} />
+            )}
+          </SheetContent>
+        </Sheet>
       </div>
     </Layout>
+  );
+}
+
+// Componente de formulario de cliente
+function ClienteForm({ cliente, onSuccess, onCancel }: { 
+  cliente: Cliente | null; 
+  onSuccess: () => void; 
+  onCancel: () => void; 
+}) {
+  const [formData, setFormData] = useState<{
+    nombre: string;
+    rut: string;
+    direccion: string;
+    tipo: 'Público' | 'Privado' | 'Revendedor';
+    email: string;
+    telefono: string;
+  }>({
+    nombre: cliente?.nombre || '',
+    rut: cliente?.rut || '',
+    direccion: cliente?.direccion || '',
+    tipo: cliente?.tipo || 'Privado',
+    email: '',
+    telefono: ''
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      // TODO: Implementar guardado en Supabase
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulación
+      onSuccess();
+    } catch (error) {
+      console.error('Error al guardar cliente:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="nombre">Nombre de la Institución *</Label>
+        <Input
+          id="nombre"
+          value={formData.nombre}
+          onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="rut">RUT *</Label>
+        <Input
+          id="rut"
+          value={formData.rut}
+          onChange={(e) => setFormData(prev => ({ ...prev, rut: e.target.value }))}
+          placeholder="XX.XXX.XXX-X"
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="tipo">Tipo de Cliente</Label>
+        <Select value={formData.tipo} onValueChange={(value: 'Público' | 'Privado' | 'Revendedor') => setFormData(prev => ({ ...prev, tipo: value }))}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Público">Público</SelectItem>
+            <SelectItem value="Privado">Privado</SelectItem>
+            <SelectItem value="Revendedor">Revendedor</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="direccion">Dirección</Label>
+        <Textarea
+          id="direccion"
+          value={formData.direccion}
+          onChange={(e) => setFormData(prev => ({ ...prev, direccion: e.target.value }))}
+        />
+      </div>
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+        />
+      </div>
+      <div>
+        <Label htmlFor="telefono">Teléfono</Label>
+        <Input
+          id="telefono"
+          value={formData.telefono}
+          onChange={(e) => setFormData(prev => ({ ...prev, telefono: e.target.value }))}
+          placeholder="+56 9 XXXX XXXX"
+        />
+      </div>
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? "Guardando..." : (cliente ? "Actualizar" : "Crear Cliente")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// Componente de detalle de cliente
+function ClienteDetalle({ cliente }: { cliente: Cliente }) {
+  return (
+    <div className="py-6 space-y-6">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-muted-foreground">Nombre</Label>
+          <p className="text-sm">{cliente.nombre}</p>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-muted-foreground">RUT</Label>
+          <p className="text-sm">{cliente.rut}</p>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-muted-foreground">Tipo</Label>
+          <Badge className="text-xs">{cliente.tipo}</Badge>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-muted-foreground">Score</Label>
+          <p className="text-sm font-semibold">{cliente.score}</p>
+        </div>
+      </div>
+      
+      <div>
+        <Label className="text-sm font-medium text-muted-foreground">Dirección</Label>
+        <p className="text-sm">{cliente.direccion || 'No especificada'}</p>
+      </div>
+
+      <div className="pt-4">
+        <p className="text-sm text-muted-foreground">
+          Las tabs de Cotizaciones, Tareas y Seguimientos estarán disponibles próximamente.
+        </p>
+      </div>
+    </div>
   );
 }
