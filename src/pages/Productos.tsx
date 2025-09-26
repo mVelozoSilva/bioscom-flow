@@ -553,12 +553,18 @@ function ProductoForm({ producto, categorias, onSuccess, onCancel }: {
       </div>
       <div>
         <Label htmlFor="categoria_id">Categoría</Label>
-        <Select value={formData.categoria_id} onValueChange={(value) => setFormData(prev => ({ ...prev, categoria_id: value }))}>
+        <Select 
+          value={formData.categoria_id || "sin-categoria"} 
+          onValueChange={(value) => setFormData(prev => ({ 
+            ...prev, 
+            categoria_id: value === "sin-categoria" ? "" : value 
+          }))}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar categoría" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Sin categoría</SelectItem>
+            <SelectItem value="sin-categoria">Sin categoría</SelectItem>
             {categorias.map((categoria) => (
               <SelectItem key={categoria.id} value={categoria.id}>
                 {categoria.nombre}
