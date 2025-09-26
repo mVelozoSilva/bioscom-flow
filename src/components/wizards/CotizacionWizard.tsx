@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { clientesSeed, productosSeed } from '@/data/seeds';
+import { productosDAL } from '@/dal/productos';
+import { supabase as clientesSupabase } from '@/integrations/supabase/client';
 
 interface CotizacionWizardProps {
   open: boolean;
@@ -38,6 +39,9 @@ const PASOS = [
 export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWizardProps) {
   const [loading, setLoading] = useState(false);
   const [pasoActual, setPasoActual] = useState(1);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [productos, setProductos] = useState<any[]>([]);
+  const [contactos, setContactos] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     cliente_id: '',
     contacto_id: '',
@@ -48,8 +52,50 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
 
   const { toast } = useToast();
 
-  const clienteSeleccionado = clientesSeed.find(c => c.id === formData.cliente_id);
-  const contactosCliente = clienteSeleccionado?.contactos || [];
+  // Load data on mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    try {
+      const [clientesData, productosData] = await Promise.all([
+        clientesSupabase.from('clientes').select('*'),
+        productosDAL.listWithCategoria()
+      ]);
+      
+      setClientes(clientesData.data || []);
+      setProductos(productosData || []);
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los datos iniciales",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (formData.cliente_id) {
+      loadContactos();
+    }
+  }, [formData.cliente_id]);
+
+  const loadContactos = async () => {
+    try {
+      const { data } = await clientesSupabase
+        .from('contactos')
+        .select('*')
+        .eq('cliente_id', formData.cliente_id);
+      
+      setContactos(data || []);
+    } catch (error) {
+      console.error('Error loading contactos:', error);
+    }
+  };
+
+  const clienteSeleccionado = clientes.find(c => c.id === formData.cliente_id);
 
   const agregarItem = () => {
     setFormData({
@@ -81,14 +127,14 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
   };
 
   const seleccionarProducto = (index: number, productoId: string) => {
-    const producto = productosSeed.find(p => p.id === productoId);
+    const producto = productos.find(p => p.id === productoId);
     if (producto) {
       const nuevosItems = [...formData.items];
       nuevosItems[index] = {
         ...nuevosItems[index],
         producto_id: productoId,
-        precio_unit: producto.precio_neto,
-        total_linea: nuevosItems[index].cantidad * producto.precio_neto
+        precio_unit: Number(producto.precio_neto),
+        total_linea: nuevosItems[index].cantidad * Number(producto.precio_neto)
       };
       setFormData({ ...formData, items: nuevosItems });
     }
@@ -231,7 +277,7 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
                   <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clientesSeed.map((cliente) => (
+                  {clientes.map((cliente) => (
                     <SelectItem key={cliente.id} value={cliente.id}>
                       <div>
                         <div className="font-medium">{cliente.nombre}</div>
@@ -243,7 +289,7 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
               </Select>
             </div>
 
-            {contactosCliente.length > 0 && (
+            {contactos.length > 0 && (
               <div className="space-y-2">
                 <Label>Contacto</Label>
                 <Select
@@ -254,7 +300,7 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
                     <SelectValue placeholder="Seleccionar contacto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {contactosCliente.map((contacto) => (
+                    {contactos.map((contacto) => (
                       <SelectItem key={contacto.id} value={contacto.id}>
                         <div>
                           <div className="font-medium">{contacto.nombre}</div>
@@ -282,7 +328,7 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
 
             <div className="space-y-3">
               {formData.items.map((item, index) => {
-                const producto = productosSeed.find(p => p.id === item.producto_id);
+                const producto = productos.find(p => p.id === item.producto_id);
                 return (
                   <Card key={index}>
                     <CardContent className="pt-4">
@@ -297,12 +343,12 @@ export function CotizacionWizard({ open, onOpenChange, onSuccess }: CotizacionWi
                               <SelectValue placeholder="Seleccionar" />
                             </SelectTrigger>
                             <SelectContent>
-                              {productosSeed.map((producto) => (
+                              {productos.map((producto) => (
                                 <SelectItem key={producto.id} value={producto.id}>
                                   <div>
                                     <div className="font-medium">{producto.nombre}</div>
                                     <div className="text-sm text-muted-foreground">
-                                      ${producto.precio_neto.toLocaleString('es-CL')}
+                                      ${Number(producto.precio_neto).toLocaleString('es-CL')}
                                     </div>
                                   </div>
                                 </SelectItem>

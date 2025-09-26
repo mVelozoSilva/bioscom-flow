@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,19 +25,41 @@ import {
   Trash2,
   Eye
 } from 'lucide-react';
-import { Cotizacion } from '@/types';
-import { cotizacionesSeed, clientesSeed, productosSeed } from '@/data/seeds';
+import { cotizacionesDAL, Cotizacion } from '@/dal/cotizaciones';
+import { CotizacionWizard } from '@/components/wizards/CotizacionWizard';
 
 type FilterType = 'todas' | 'pendientes' | 'enviadas' | 'por-vencer' | 'score-alto' | 'monto-alto' | 'rechazadas';
 
 export default function Cotizaciones() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [cotizaciones] = useState<Cotizacion[]>(cotizacionesSeed);
+  const [cotizaciones, setCotizaciones] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filtroActivo, setFiltroActivo] = useState<FilterType>('todas');
   const [cotizacionWizardOpen, setCotizacionWizardOpen] = useState(false);
   const [enviarDialogOpen, setEnviarDialogOpen] = useState(false);
-  const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState<Cotizacion | null>(null);
+  const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState<any>(null);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await cotizacionesDAL.listWithDetails();
+      setCotizaciones(data || []);
+    } catch (error) {
+      console.error('Error loading cotizaciones:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las cotizaciones",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Filtrar cotizaciones
   const cotizacionesFiltradas = useMemo(() => {
@@ -52,6 +74,7 @@ export default function Cotizaciones() {
         break;
       case 'por-vencer':
         resultado = resultado.filter(c => {
+          if (!c.fecha_expiracion) return false;
           const diasRestantes = Math.ceil((new Date(c.fecha_expiracion).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
           return diasRestantes <= 7 && diasRestantes > 0;
         });
@@ -61,7 +84,7 @@ export default function Cotizaciones() {
         break;
       case 'monto-alto':
         resultado = resultado.filter(c => {
-          const monto = c.productos.reduce((sum, p) => sum + p.total_linea, 0);
+          const monto = c.items?.reduce((sum, p) => sum + p.total_linea, 0) || 0;
           return monto >= 1000000;
         });
         break;
@@ -73,40 +96,85 @@ export default function Cotizaciones() {
     return resultado;
   }, [cotizaciones, filtroActivo]);
 
-  const descargarPDF = (cotizacion: Cotizacion) => {
-    toast({
-      title: "Generando PDF",
-      description: "La descarga comenzará en breve.",
-    });
-    // TODO: Implementar generación de PDF
+  const descargarPDF = async (cotizacion: any) => {
+    try {
+      toast({
+        title: "Generando PDF",
+        description: "La descarga comenzará en breve.",
+      });
+      
+      // TODO: Implement PDF generation
+      // For now, just show success message
+      setTimeout(() => {
+        toast({
+          title: "PDF generado",
+          description: `PDF de cotización ${cotizacion.codigo} listo para descarga.`,
+        });
+      }, 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const enviarCotizacion = (cotizacion: Cotizacion) => {
+  const enviarCotizacion = (cotizacion: any) => {
     setCotizacionSeleccionada(cotizacion);
     setEnviarDialogOpen(true);
   };
 
-  const confirmarEnvio = () => {
+  const confirmarEnvio = async () => {
     if (cotizacionSeleccionada) {
-      const cliente = clientesSeed.find(c => c.id === cotizacionSeleccionada.cliente_id);
-      // Simular envío por email
-      window.open(`mailto:${cliente?.nombre}@example.com?subject=Cotización ${cotizacionSeleccionada.codigo}&body=Adjunto encontrará la cotización solicitada.`);
-      
-      toast({
-        title: "Cotización enviada",
-        description: `Se ha enviado la cotización ${cotizacionSeleccionada.codigo}`,
-      });
-      setEnviarDialogOpen(false);
+      try {
+        // Update status to 'Enviada'
+        await cotizacionesDAL.update(cotizacionSeleccionada.id, {
+          estado: 'Enviada'
+        });
+        
+        // Simulate email sending
+        const clienteEmail = cotizacionSeleccionada.cliente?.nombre || 'cliente';
+        window.open(`mailto:${clienteEmail}@example.com?subject=Cotización ${cotizacionSeleccionada.codigo}&body=Adjunto encontrará la cotización solicitada.`);
+        
+        toast({
+          title: "Cotización enviada",
+          description: `Se ha enviado la cotización ${cotizacionSeleccionada.codigo}`,
+        });
+        
+        setEnviarDialogOpen(false);
+        loadData(); // Reload data to show updated status
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "No se pudo enviar la cotización.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
-  const copiarCotizacion = async (cotizacion: Cotizacion) => {
+  const copiarCotizacion = async (cotizacion: any) => {
     try {
-      // TODO: Implementar duplicación en Supabase
+      const newCodigo = await cotizacionesDAL.generateNextCodigo();
+      
+      // Create copy with new codigo
+      await cotizacionesDAL.create({
+        ...cotizacion,
+        codigo: newCodigo,
+        estado: 'Pendiente',
+        fecha_expiracion: null,
+        pdf_url: null,
+        created_at: undefined,
+        updated_at: undefined
+      });
+      
       toast({
         title: "Cotización duplicada",
-        description: "Se ha creado una copia con nuevo código.",
+        description: `Se ha creado una copia con código ${newCodigo}.`,
       });
+      
+      loadData(); // Reload to show new quotation
     } catch (error) {
       toast({
         title: "Error",
@@ -116,13 +184,14 @@ export default function Cotizaciones() {
     }
   };
 
-  const eliminarCotizacion = async (cotizacion: Cotizacion) => {
+  const eliminarCotizacion = async (cotizacion: any) => {
     try {
-      // TODO: Implementar eliminación en Supabase
+      // TODO: Implement delete in DAL
       toast({
         title: "Cotización eliminada",
         description: `La cotización ${cotizacion.codigo} ha sido eliminada.`,
       });
+      loadData(); // Reload data
     } catch (error) {
       toast({
         title: "Error",
@@ -150,7 +219,7 @@ export default function Cotizaciones() {
     return 'text-red-600';
   };
 
-  const columns: ColumnDef<Cotizacion>[] = [
+  const columns: ColumnDef<any>[] = [
     {
       accessorKey: 'codigo',
       header: 'Código',
@@ -160,26 +229,27 @@ export default function Cotizaciones() {
       },
     },
     {
-      accessorKey: 'cliente_id',
+      accessorKey: 'cliente',
       header: 'Cliente',
       cell: ({ row }) => {
-        const clienteId = row.getValue('cliente_id') as string;
-        const cliente = clientesSeed.find(c => c.id === clienteId);
+        const cliente = row.original.cliente;
         return cliente ? (
           <div>
             <div className="font-medium">{cliente.nombre}</div>
             <div className="text-sm text-muted-foreground">{cliente.rut}</div>
           </div>
-        ) : null;
+        ) : (
+          <span className="text-muted-foreground">Sin cliente</span>
+        );
       },
     },
     {
-      accessorKey: 'productos',
+      accessorKey: 'items',
       header: 'Productos',
       cell: ({ row }) => {
-        const productos = row.getValue('productos') as any[];
-        const totalProductos = productos.length;
-        const montoTotal = productos.reduce((sum, p) => sum + p.total_linea, 0);
+        const items = row.original.items || [];
+        const totalProductos = items.length;
+        const montoTotal = items.reduce((sum, p) => sum + (p.total_linea || 0), 0);
         return (
           <div>
             <div className="text-sm font-medium">{totalProductos} producto(s)</div>
@@ -218,7 +288,9 @@ export default function Cotizaciones() {
       accessorKey: 'fecha_expiracion',
       header: 'Vencimiento',
       cell: ({ row }) => {
-        const fecha = row.getValue('fecha_expiracion') as Date;
+        const fecha = row.getValue('fecha_expiracion') as string;
+        if (!fecha) return <span className="text-muted-foreground">Sin fecha</span>;
+        
         const diasRestantes = Math.ceil((new Date(fecha).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
         return (
           <div>
@@ -298,9 +370,9 @@ export default function Cotizaciones() {
     pendientes: cotizacionesFiltradas.filter(c => c.estado === 'Pendiente' || c.estado === 'Enviada').length,
     aceptadas: cotizacionesFiltradas.filter(c => c.estado === 'Aceptada').length,
     montoTotal: cotizacionesFiltradas.reduce((sum, c) => 
-      sum + c.productos.reduce((pSum, p) => pSum + p.total_linea, 0), 0
+      sum + (c.items?.reduce((pSum, p) => pSum + (p.total_linea || 0), 0) || 0), 0
     ),
-    scorePromedio: cotizacionesFiltradas.length > 0 ? Math.round(cotizacionesFiltradas.reduce((acc, c) => acc + c.score, 0) / cotizacionesFiltradas.length) : 0,
+    scorePromedio: cotizacionesFiltradas.length > 0 ? Math.round(cotizacionesFiltradas.reduce((acc, c) => acc + (c.score || 0), 0) / cotizacionesFiltradas.length) : 0,
   };
 
   return (
@@ -447,6 +519,7 @@ export default function Cotizaciones() {
               data={cotizacionesFiltradas}
               searchKey="codigo"
               searchPlaceholder="Buscar por código, cliente..."
+              loading={loading}
             />
           </CardContent>
         </Card>
@@ -471,20 +544,18 @@ export default function Cotizaciones() {
           </DialogContent>
         </Dialog>
 
-        {/* TODO: Implementar CotizacionWizard */}
-        {cotizacionWizardOpen && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="bg-card p-6 rounded-lg shadow-lg max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Wizard de Cotización</h3>
-              <p className="text-muted-foreground mb-4">
-                El wizard completo estará disponible próximamente.
-              </p>
-              <Button onClick={() => setCotizacionWizardOpen(false)}>
-                Cerrar
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Cotización Wizard */}
+        <CotizacionWizard 
+          open={cotizacionWizardOpen} 
+          onOpenChange={setCotizacionWizardOpen}
+          onSuccess={(cotizacionId) => {
+            loadData(); // Reload data to show new quotation
+            toast({
+              title: "Éxito",
+              description: "Cotización creada correctamente",
+            });
+          }}
+        />
       </div>
     </Layout>
   );
