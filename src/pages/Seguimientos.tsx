@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -27,22 +26,45 @@ import {
   Users,
   Edit,
   PhoneCall,
-  X
+  X,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
-import { Seguimiento } from '@/types';
-import { seguimientosSeed, clientesSeed, usuariosSeed } from '@/data/seeds';
+import { SeguimientosDAL } from '@/dal/seguimientos';
+import { SeguimientoDrawer } from '@/components/drawers/SeguimientoDrawer';
 
 type FilterType = 'todos' | 'hoy' | 'vencidos' | 'esta-semana';
 
 export default function Seguimientos() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [seguimientos] = useState<Seguimiento[]>(seguimientosSeed);
+  const [seguimientos, setSeguimientos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filtroActivo, setFiltroActivo] = useState<FilterType>('todos');
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
   const [llamadaDialogOpen, setLlamadaDialogOpen] = useState(false);
-  const [seguimientoSeleccionado, setSeguimientoSeleccionado] = useState<Seguimiento | null>(null);
+  const [seguimientoSeleccionado, setSeguimientoSeleccionado] = useState<any>(null);
   const [vistaAgenda, setVistaAgenda] = useState(false);
+
+  useEffect(() => {
+    loadSeguimientos();
+  }, []);
+
+  const loadSeguimientos = async () => {
+    try {
+      setLoading(true);
+      const data = await SeguimientosDAL.getAll();
+      setSeguimientos(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los seguimientos",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filtrar seguimientos
   const seguimientosFiltrados = useMemo(() => {
@@ -77,18 +99,53 @@ export default function Seguimientos() {
     return resultado;
   }, [seguimientos, filtroActivo]);
 
-  const abrirLlamada = (seguimiento: Seguimiento) => {
+  const abrirLlamada = (seguimiento: any) => {
     setSeguimientoSeleccionado(seguimiento);
     setLlamadaDialogOpen(true);
   };
 
-  const registrarLlamada = () => {
+  const registrarLlamada = async () => {
     if (seguimientoSeleccionado) {
-      toast({
-        title: "Llamada registrada",
-        description: "Se ha registrado la gestión telefónica.",
+      try {
+        // Actualizar última gestión y próxima gestión
+        await SeguimientosDAL.update(seguimientoSeleccionado.id, {
+          ultima_gestion: new Date().toISOString().split('T')[0],
+          estado: 'En gestión'
+        });
+        
+        toast({
+          title: "Llamada registrada",
+          description: "Se ha registrado la gestión telefónica.",
+        });
+        setLlamadaDialogOpen(false);
+        loadSeguimientos();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "No se pudo registrar la llamada",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const completarSeguimiento = async (seguimiento: any) => {
+    try {
+      await SeguimientosDAL.update(seguimiento.id, {
+        estado: 'Cerrado'
       });
-      setLlamadaDialogOpen(false);
+      
+      toast({
+        title: "Seguimiento completado",
+        description: "El seguimiento ha sido marcado como completado.",
+      });
+      loadSeguimientos();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo completar el seguimiento",
+        variant: "destructive"
+      });
     }
   };
 
@@ -113,14 +170,14 @@ export default function Seguimientos() {
     }
   };
 
-  const getSemaforoColor = (seguimiento: Seguimiento) => {
+  const getSemaforoColor = (seguimiento: any) => {
     const dias = Math.ceil((new Date(seguimiento.proxima_gestion).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     if (dias < 0) return 'bg-red-500'; // Vencido
     if (dias <= 1) return 'bg-yellow-500'; // Por vencer
     return 'bg-green-500'; // Ok
   };
 
-  const columns: ColumnDef<Seguimiento>[] = [
+  const columns: ColumnDef<any>[] = [
     {
       accessorKey: 'semaforo',
       header: '',
@@ -135,8 +192,8 @@ export default function Seguimientos() {
       accessorKey: 'cliente_id',
       header: 'Cliente',
       cell: ({ row }) => {
-        const clienteId = row.getValue('cliente_id') as string;
-        const cliente = clientesSeed.find(c => c.id === clienteId);
+        const seguimiento = row.original;
+        const cliente = seguimiento.clientes;
         return cliente ? (
           <div>
             <div className="font-medium">{cliente.nombre}</div>
@@ -149,8 +206,8 @@ export default function Seguimientos() {
       accessorKey: 'vendedor_id',
       header: 'Vendedor',
       cell: ({ row }) => {
-        const vendedorId = row.getValue('vendedor_id') as string;
-        const vendedor = usuariosSeed.find(u => u.id === vendedorId);
+        const seguimiento = row.original;
+        const vendedor = seguimiento.user_profiles;
         return vendedor ? (
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-xs text-white">
@@ -261,12 +318,7 @@ export default function Seguimientos() {
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  toast({
-                    title: "Seguimiento completado",
-                    description: "El seguimiento ha sido marcado como completado.",
-                  });
-                }}>
+                <DropdownMenuItem onClick={() => completarSeguimiento(seguimiento)}>
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Completar
                 </DropdownMenuItem>
@@ -311,6 +363,14 @@ export default function Seguimientos() {
             >
               <Calendar className="h-4 w-4 mr-2" />
               {vistaAgenda ? 'Vista Lista' : 'Mi Agenda'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={loadSeguimientos}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
             </Button>
             <Button onClick={() => setSeguimientoDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -437,7 +497,7 @@ export default function Seguimientos() {
                   })
                   .slice(0, 3)
                   .map((seguimiento) => {
-                    const cliente = clientesSeed.find(c => c.id === seguimiento.cliente_id);
+                    const cliente = seguimiento.clientes;
                     return (
                       <div key={seguimiento.id} className="flex items-center justify-between p-2 bg-white rounded border">
                         <div>
@@ -446,7 +506,7 @@ export default function Seguimientos() {
                             Vencido el {new Date(seguimiento.proxima_gestion).toLocaleDateString('es-CL')}
                           </div>
                         </div>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => abrirLlamada(seguimiento)}>
                           <Phone className="h-4 w-4 mr-2" />
                           Contactar
                         </Button>
