@@ -54,7 +54,7 @@ export class ProductosDAL {
 
       if (filters) {
         for (const [key, value] of Object.entries(filters)) {
-          if (value !== undefined && value !== null) {
+          if (value !== undefined && value !== null && value !== '') {
             if (key === 'search') {
               query = query.or(`nombre.ilike.%${value}%,codigo_producto.ilike.%${value}%,descripcion_corta.ilike.%${value}%`);
             } else if (key === 'categoria_id') {
