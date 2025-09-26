@@ -151,11 +151,11 @@ export default function Seguimientos() {
 
   const getPriorityColor = (prioridad: string) => {
     switch (prioridad) {
-      case 'Urgente': return 'bg-red-100 text-red-800 border-red-200';
+      case 'Urgente': return 'bg-destructive/10 text-destructive border-destructive/20';
       case 'Alta': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'Media': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'Baja': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-muted text-muted-foreground border-border';
     }
   };
 
@@ -164,15 +164,15 @@ export default function Seguimientos() {
       case 'Activo': return 'bg-green-100 text-green-800';
       case 'En gestión': return 'bg-blue-100 text-blue-800';
       case 'Pausado': return 'bg-yellow-100 text-yellow-800';
-      case 'Cerrado': return 'bg-gray-100 text-gray-800';
-      case 'Vencido': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Cerrado': return 'bg-muted text-muted-foreground';
+      case 'Vencido': return 'bg-destructive/10 text-destructive';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
   const getSemaforoColor = (seguimiento: any) => {
     const dias = Math.ceil((new Date(seguimiento.proxima_gestion).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    if (dias < 0) return 'bg-red-500'; // Vencido
+    if (dias < 0) return 'bg-destructive'; // Vencido
     if (dias <= 1) return 'bg-yellow-500'; // Por vencer
     return 'bg-green-500'; // Ok
   };
@@ -525,35 +525,232 @@ export default function Seguimientos() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm">Todos</Button>
-              <Button variant="outline" size="sm">Mis Seguimientos</Button>
-              <Button variant="outline" size="sm">Para Hoy</Button>
-              <Button variant="outline" size="sm">Esta Semana</Button>
-              <Button variant="outline" size="sm">Vencidos</Button>
-              <Button variant="outline" size="sm">Alta Prioridad</Button>
-              <Button variant="outline" size="sm">Sin Gestión</Button>
+              <Button 
+                variant={filtroActivo === 'todos' ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setFiltroActivo('todos')}
+              >
+                Todos
+              </Button>
+              <Button 
+                variant={filtroActivo === 'hoy' ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setFiltroActivo('hoy')}
+              >
+                Para Hoy
+              </Button>
+              <Button 
+                variant={filtroActivo === 'esta-semana' ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setFiltroActivo('esta-semana')}
+              >
+                Esta Semana
+              </Button>
+              <Button 
+                variant={filtroActivo === 'vencidos' ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setFiltroActivo('vencidos')}
+              >
+                Vencidos
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabla de seguimientos */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Lista de Seguimientos</CardTitle>
-            <CardDescription>
-              {seguimientos.length} seguimientos en el sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-              columns={columns} 
-              data={seguimientos}
-              searchKey="notas"
-              searchPlaceholder="Buscar en notas o cliente..."
-            />
-          </CardContent>
-        </Card>
+        {/* Vista Agenda o Tabla */}
+        {vistaAgenda ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Mi Agenda de Seguimientos</CardTitle>
+              <CardDescription>
+                Vista calendario de tus próximas gestiones
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Seguimientos de hoy */}
+                <div>
+                  <h3 className="font-semibold mb-4 flex items-center">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Hoy - {new Date().toLocaleDateString('es-CL')}
+                  </h3>
+                  <div className="space-y-3">
+                    {seguimientos
+                      .filter(s => {
+                        const hoy = new Date();
+                        const fechaSeg = new Date(s.proxima_gestion);
+                        return fechaSeg.toDateString() === hoy.toDateString();
+                      })
+                      .map((seguimiento) => (
+                        <div key={seguimiento.id} className="p-3 border rounded-lg hover:bg-muted/50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-3 h-3 rounded-full ${getSemaforoColor(seguimiento)}`} />
+                              <div>
+                                <div className="font-medium text-sm">
+                                  {seguimiento.clientes?.nombre}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {seguimiento.notas?.substring(0, 50)}...
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex space-x-1">
+                              <Button size="sm" variant="ghost" onClick={() => abrirLlamada(seguimiento)}>
+                                <PhoneCall className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                setSeguimientoSeleccionado(seguimiento);
+                                setSeguimientoDrawerOpen(true);
+                              }}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    {seguimientos.filter(s => {
+                      const hoy = new Date();
+                      const fechaSeg = new Date(s.proxima_gestion);
+                      return fechaSeg.toDateString() === hoy.toDateString();
+                    }).length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No tienes seguimientos programados para hoy
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Próximos días */}
+                <div>
+                  <h3 className="font-semibold mb-4 flex items-center">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Próximos días
+                  </h3>
+                  <div className="space-y-3">
+                    {seguimientos
+                      .filter(s => {
+                        const hoy = new Date();
+                        const fechaSeg = new Date(s.proxima_gestion);
+                        const manana = new Date(hoy);
+                        manana.setDate(hoy.getDate() + 1);
+                        const finSemana = new Date(hoy);
+                        finSemana.setDate(hoy.getDate() + 7);
+                        return fechaSeg >= manana && fechaSeg <= finSemana;
+                      })
+                      .sort((a, b) => new Date(a.proxima_gestion).getTime() - new Date(b.proxima_gestion).getTime())
+                      .map((seguimiento) => (
+                        <div key={seguimiento.id} className="p-3 border rounded-lg hover:bg-muted/50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-3 h-3 rounded-full ${getSemaforoColor(seguimiento)}`} />
+                              <div>
+                                <div className="font-medium text-sm">
+                                  {seguimiento.clientes?.nombre}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {new Date(seguimiento.proxima_gestion).toLocaleDateString('es-CL')}
+                                </div>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={getPriorityColor(seguimiento.prioridad)}>
+                              {seguimiento.prioridad}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Seguimientos</CardTitle>
+              <CardDescription>
+                {seguimientosFiltrados.length} de {seguimientos.length} seguimientos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable 
+                columns={columns} 
+                data={seguimientosFiltrados}
+                searchKey="notas"
+                searchPlaceholder="Buscar en notas o cliente..."
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* SeguimientoDrawer */}
+      <SeguimientoDrawer
+        open={seguimientoDrawerOpen}
+        onOpenChange={(open) => {
+          setSeguimientoDrawerOpen(open);
+          if (!open) {
+            setSeguimientoSeleccionado(null);
+          }
+        }}
+        seguimiento={seguimientoSeleccionado}
+        onSave={loadSeguimientos}
+      />
+
+      {/* Dialog para registrar llamada */}
+      <Dialog open={llamadaDialogOpen} onOpenChange={setLlamadaDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Llamada</DialogTitle>
+            <DialogDescription>
+              Registra el contacto telefónico con {seguimientoSeleccionado?.clientes?.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="resultado">Resultado de la llamada</Label>
+              <Select defaultValue="contactado">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contactado">Contactado exitosamente</SelectItem>
+                  <SelectItem value="no-contesta">No contesta</SelectItem>
+                  <SelectItem value="ocupado">Línea ocupada</SelectItem>
+                  <SelectItem value="no-disponible">No disponible</SelectItem>
+                  <SelectItem value="interesado">Interesado en propuesta</SelectItem>
+                  <SelectItem value="no-interesado">No interesado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="notas">Notas de la llamada</Label>
+              <Textarea 
+                id="notas"
+                placeholder="Describe el resultado de la conversación..."
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label htmlFor="proxima-llamada">Próxima gestión</Label>
+              <Input 
+                id="proxima-llamada"
+                type="date"
+                defaultValue={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setLlamadaDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={registrarLlamada}>
+                <Phone className="h-4 w-4 mr-2" />
+                Registrar Llamada
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

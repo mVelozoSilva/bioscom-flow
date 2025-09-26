@@ -47,6 +47,7 @@ export function SeguimientoDrawer({ open, onOpenChange, seguimiento, onSave }: S
   const [loading, setLoading] = useState(false);
   const [clientes, setClientes] = useState<any[]>([]);
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
+  const [vendedores, setVendedores] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const form = useForm<SeguimientoForm>({
@@ -95,13 +96,20 @@ export function SeguimientoDrawer({ open, onOpenChange, seguimiento, onSave }: S
   const loadData = async () => {
     try {
       setLoadingData(true);
-      const [clientesData, cotizacionesData] = await Promise.all([
+      const [clientesData, cotizacionesData, vendedoresData] = await Promise.all([
         clientesDAL.listWithContacts(),
-        cotizacionesDAL.listWithDetails()
+        cotizacionesDAL.listWithDetails(),
+        // For now, we'll use a mock vendedores list since we don't have a DAL for user_profiles
+        Promise.resolve([
+          { id: '1', nombre: 'Juan Pérez', email: 'juan@example.com' },
+          { id: '2', nombre: 'María González', email: 'maria@example.com' },
+          { id: '3', nombre: 'Carlos Silva', email: 'carlos@example.com' }
+        ])
       ]);
       
       setClientes(clientesData);
       setCotizaciones(cotizacionesData);
+      setVendedores(vendedoresData);
     } catch (error) {
       toast({
         title: "Error",
@@ -185,6 +193,32 @@ export function SeguimientoDrawer({ open, onOpenChange, seguimiento, onSave }: S
                         {clientes.map((cliente) => (
                           <SelectItem key={cliente.id} value={cliente.id}>
                             {cliente.nombre} - {cliente.rut}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="vendedor_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vendedor Asignado (Opcional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un vendedor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">Sin vendedor asignado</SelectItem>
+                        {vendedores.map((vendedor) => (
+                          <SelectItem key={vendedor.id} value={vendedor.id}>
+                            {vendedor.nombre} - {vendedor.email}
                           </SelectItem>
                         ))}
                       </SelectContent>
