@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ import {
   Clock,
   Eye
 } from 'lucide-react';
-import { serviciosTecnicosSeed } from '@/data/seeds';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -38,25 +39,63 @@ interface HistorialServicio {
 }
 
 export default function HistorialServicios() {
-  // Simular historial basado en servicios técnicos
-  const historial: HistorialServicio[] = serviciosTecnicosSeed
-    .filter(servicio => servicio.estado === 'en_proceso' || servicio.estado === 'cancelado')
-    .map((servicio, index) => ({
-      id: servicio.id,
-      numero_ticket: `ST-2024-${String(index + 1).padStart(5, '0')}`,
-      cliente_nombre: 'Cliente Demo', // Se obtendría del cliente real
-      equipo: servicio.equipo,
-      tipo: servicio.tipo,
-      fecha_servicio: servicio.fecha_fin || servicio.fecha_programada || new Date().toISOString(),
-      tecnico: 'Técnico Asignado',
-      estado: 'completado',
-      informe_id: `inf-${index}`,
-      numero_informe: `IT-${String(index + 1).padStart(4, '0')}`,
-      pdf_url: index % 2 === 0 ? '/ejemplo-informe.pdf' : undefined,
-      qr_code: index % 3 === 0 ? '/qr-code.png' : undefined
-    }));
-
+  const [historial, setHistorial] = useState<HistorialServicio[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+
+  const loadHistorial = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('servicios_tecnicos')
+        .select(`
+          *,
+          clientes (
+            nombre,
+            rut
+          ),
+          informes_tecnicos (
+            id,
+            numero,
+            pdf_url,
+            qr_code
+          )
+        `)
+        .in('estado', ['completado', 'cancelado'])
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const historialData: HistorialServicio[] = (data || []).map(servicio => ({
+        id: servicio.id,
+        numero_ticket: servicio.numero_ticket,
+        cliente_nombre: servicio.clientes?.nombre || 'Cliente no encontrado',
+        equipo: servicio.equipo,
+        tipo: servicio.tipo,
+        fecha_servicio: servicio.fecha_fin || servicio.fecha_programada || servicio.created_at,
+        tecnico: 'No asignado', // Por ahora sin relación con user_profiles
+        estado: servicio.estado === 'completado' ? 'completado' : 'cancelado',
+        informe_id: Array.isArray(servicio.informes_tecnicos) && servicio.informes_tecnicos.length > 0 ? servicio.informes_tecnicos[0].id : undefined,
+        numero_informe: Array.isArray(servicio.informes_tecnicos) && servicio.informes_tecnicos.length > 0 ? servicio.informes_tecnicos[0].numero : undefined,
+        pdf_url: Array.isArray(servicio.informes_tecnicos) && servicio.informes_tecnicos.length > 0 ? servicio.informes_tecnicos[0].pdf_url : undefined,
+        qr_code: Array.isArray(servicio.informes_tecnicos) && servicio.informes_tecnicos.length > 0 ? servicio.informes_tecnicos[0].qr_code : undefined
+      }));
+
+      setHistorial(historialData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el historial de servicios",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistorial();
+  }, []);
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -293,6 +332,7 @@ export default function HistorialServicios() {
               data={historial}
               searchKey="numero_ticket"
               searchPlaceholder="Buscar por ticket, cliente, equipo o técnico..."
+              loading={loading}
             />
           </CardContent>
         </Card>

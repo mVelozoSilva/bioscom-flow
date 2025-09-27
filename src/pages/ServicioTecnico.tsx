@@ -184,7 +184,7 @@ export default function ServicioTecnico() {
         const cliente = row.original.clientes;
         return (
           <div>
-            <div className="font-medium">{cliente?.nombre}</div>
+            <div className="font-medium">{cliente?.nombre || 'Cliente no encontrado'}</div>
             <div className="text-sm text-muted-foreground">{row.original.contacto_cliente}</div>
           </div>
         );

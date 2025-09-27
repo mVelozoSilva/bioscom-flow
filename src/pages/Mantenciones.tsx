@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,68 +7,123 @@ import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
-  Calendar, 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Settings
+  Settings, 
+  AlertTriangle, 
+  CheckCircle, 
+  Clock, 
+  Calendar,
+  Plus,
+  Filter
 } from 'lucide-react';
-import { serviciosTecnicosSeed } from '@/data/seeds';
-import { format, addMonths } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { ServicioTecnicoDrawer } from '@/components/drawers/ServicioTecnicoDrawer';
 
 interface Mantencion {
   id: string;
   cliente_nombre: string;
   equipo: string;
-  tipo: string;
-  frecuencia: string;
-  ultima_mantencion: string;
-  proxima_mantencion: string;
-  tecnico: string;
-  estado: string;
-  prioridad: string;
+  tipo_mantencion: string;
+  estado: 'pendiente' | 'programado' | 'completado' | 'vencido';
+  prioridad: 'baja' | 'media' | 'alta' | 'urgente';
+  fecha_programada: string;
+  fecha_completado?: string;
+  tecnico_asignado: string;
+  observaciones?: string;
+  proximo_mantenimiento: string;
 }
 
 export default function Mantenciones() {
-  // Simular datos de mantenciones basados en servicios técnicos
-  const mantenciones: Mantencion[] = serviciosTecnicosSeed
-    .filter(servicio => servicio.tipo === 'preventivo')
-    .map(servicio => ({
-      id: servicio.id,
-      cliente_nombre: 'Cliente Demo', // Se obtendría del cliente real
-      equipo: servicio.equipo,
-      tipo: 'Preventiva',
-      frecuencia: 'Trimestral',
-      ultima_mantencion: servicio.fecha_programada || new Date().toISOString(),
-      proxima_mantencion: addMonths(new Date(servicio.fecha_programada || new Date()), 3).toISOString(),
-      tecnico: 'Técnico Asignado',
-      estado: 'Programada',
-      prioridad: servicio.prioridad
-    }));
-
+  const [mantenciones, setMantenciones] = useState<Mantencion[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [servicioDrawerOpen, setServicioDrawerOpen] = useState(false);
+  const { toast } = useToast();
+
+  const loadMantenciones = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('servicios_tecnicos')
+        .select(`
+          *,
+          clientes (
+            nombre,
+            rut
+          )
+        `)
+        .eq('tipo', 'preventivo')
+        .order('fecha_programada', { ascending: true });
+
+      if (error) throw error;
+
+      const mantencionesData: Mantencion[] = (data || []).map(servicio => {
+        const fechaProgramada = new Date(servicio.fecha_programada || servicio.created_at);
+        const hoy = new Date();
+        
+        // Determinar estado basado en fechas
+        let estado: 'pendiente' | 'programado' | 'completado' | 'vencido' = 'pendiente';
+        if (servicio.estado === 'completado') {
+          estado = 'completado';
+        } else if (fechaProgramada < hoy) {
+          estado = 'vencido';
+        } else if (servicio.fecha_programada) {
+          estado = 'programado';
+        }
+
+        // Calcular próximo mantenimiento (90 días después del último)
+        const proximoMantenimiento = new Date(fechaProgramada);
+        proximoMantenimiento.setDate(proximoMantenimiento.getDate() + 90);
+
+        return {
+          id: servicio.id,
+          cliente_nombre: servicio.clientes?.nombre || 'Cliente no encontrado',
+          equipo: servicio.equipo,
+          tipo_mantencion: 'Preventivo',
+          estado,
+          prioridad: servicio.prioridad?.toLowerCase() as 'baja' | 'media' | 'alta' | 'urgente' || 'media',
+          fecha_programada: servicio.fecha_programada || servicio.created_at,
+          fecha_completado: servicio.fecha_fin,
+          tecnico_asignado: 'Sin asignar',
+          observaciones: servicio.observaciones,
+          proximo_mantenimiento: proximoMantenimiento.toISOString()
+        };
+      });
+
+      setMantenciones(mantencionesData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las mantenciones",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMantenciones();
+  }, []);
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
-      case 'Completada': return 'bg-green-100 text-green-800';
-      case 'Programada': return 'bg-blue-100 text-blue-800';
-      case 'Vencida': return 'bg-red-100 text-red-800';
-      case 'En proceso': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'completado': return 'default';
+      case 'programado': return 'default';
+      case 'vencido': return 'destructive';
+      case 'pendiente': return 'secondary';
+      default: return 'secondary';
     }
   };
 
   const getPrioridadColor = (prioridad: string) => {
     switch (prioridad) {
-      case 'alta': return 'bg-red-100 text-red-800';
-      case 'media': return 'bg-yellow-100 text-yellow-800';
-      case 'baja': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'urgente': return 'destructive';
+      case 'alta': return 'destructive';
+      case 'media': return 'default';
+      case 'baja': return 'secondary';
+      default: return 'secondary';
     }
   };
 
@@ -82,24 +137,20 @@ export default function Mantenciones() {
       header: 'Equipo',
     },
     {
-      accessorKey: 'tipo',
+      accessorKey: 'tipo_mantencion',
       header: 'Tipo',
       cell: ({ row }) => (
-        <Badge variant="outline">{row.getValue('tipo')}</Badge>
+        <Badge variant="outline">{row.getValue('tipo_mantencion')}</Badge>
       ),
     },
     {
-      accessorKey: 'frecuencia',
-      header: 'Frecuencia',
-    },
-    {
-      accessorKey: 'proxima_mantencion',
-      header: 'Próxima Mantención',
+      accessorKey: 'fecha_programada',
+      header: 'Fecha Programada',
       cell: ({ row }) => {
-        const fecha = row.getValue('proxima_mantencion') as string;
+        const fecha = row.getValue('fecha_programada') as string;
         return (
           <div className="text-sm">
-            {format(new Date(fecha), "PPP", { locale: es })}
+            {format(new Date(fecha), "dd/MM/yyyy", { locale: es })}
           </div>
         );
       },
@@ -110,8 +161,10 @@ export default function Mantenciones() {
       cell: ({ row }) => {
         const estado = row.getValue('estado') as string;
         return (
-          <Badge className={getEstadoColor(estado)}>
-            {estado}
+          <Badge variant={getEstadoColor(estado)}>
+            {estado === 'completado' ? 'Completado' : 
+             estado === 'programado' ? 'Programado' :
+             estado === 'vencido' ? 'Vencido' : 'Pendiente'}
           </Badge>
         );
       },
@@ -122,32 +175,25 @@ export default function Mantenciones() {
       cell: ({ row }) => {
         const prioridad = row.getValue('prioridad') as string;
         return (
-          <Badge className={getPrioridadColor(prioridad)}>
-            {prioridad}
+          <Badge variant={getPrioridadColor(prioridad)}>
+            {prioridad === 'urgente' ? 'Urgente' :
+             prioridad === 'alta' ? 'Alta' :
+             prioridad === 'media' ? 'Media' : 'Baja'}
           </Badge>
         );
       },
     },
     {
-      id: 'actions',
-      cell: ({ row }) => {
-        return (
-          <Button variant="ghost" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        );
-      },
+      accessorKey: 'tecnico_asignado',
+      header: 'Técnico',
     },
   ];
 
   const estadisticas = {
     total: mantenciones.length,
-    programadas: mantenciones.filter(m => m.estado === 'Programada').length,
-    vencidas: mantenciones.filter(m => {
-      const fecha = new Date(m.proxima_mantencion);
-      return fecha < new Date() && m.estado !== 'Completada';
-    }).length,
-    completadas: mantenciones.filter(m => m.estado === 'Completada').length,
+    programadas: mantenciones.filter(m => m.estado === 'programado').length,
+    vencidas: mantenciones.filter(m => m.estado === 'vencido').length,
+    completadas: mantenciones.filter(m => m.estado === 'completado').length,
   };
 
   return (
@@ -162,13 +208,13 @@ export default function Mantenciones() {
             </p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline">
-              <Calendar className="h-4 w-4 mr-2" />
-              Calendario
-            </Button>
-            <Button>
+            <Button onClick={() => setServicioDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Nueva Mantención
+              Programar Mantención
+            </Button>
+            <Button variant="outline">
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros
             </Button>
           </div>
         </div>
@@ -260,10 +306,23 @@ export default function Mantenciones() {
               data={mantenciones}
               searchKey="cliente_nombre"
               searchPlaceholder="Buscar por cliente, equipo o técnico..."
+              loading={loading}
             />
           </CardContent>
         </Card>
       </div>
+
+      <ServicioTecnicoDrawer
+        open={servicioDrawerOpen}
+        onOpenChange={setServicioDrawerOpen}
+        onSuccess={() => {
+          loadMantenciones();
+          toast({
+            title: "Mantención programada",
+            description: "La mantención preventiva se ha programado correctamente",
+          });
+        }}
+      />
     </Layout>
   );
 }

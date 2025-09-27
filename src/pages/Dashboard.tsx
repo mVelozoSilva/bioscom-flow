@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,7 @@ import {
   Wrench,
   Plus
 } from 'lucide-react';
-import { usuariosSeed, tareasSeed, cotizacionesSeed, seguimientosSeed, facturasSeed, clientesSeed } from '@/data/seeds';
+import { supabase } from '@/integrations/supabase/client';
 import { TareaDrawer } from '@/components/drawers/TareaDrawer';
 import { ClienteDrawer } from '@/components/drawers/ClienteDrawer';
 import { CotizacionWizard } from '@/components/wizards/CotizacionWizard';
@@ -34,6 +34,15 @@ export default function Dashboard() {
   const [cotizacionWizardOpen, setCotizacionWizardOpen] = useState(false);
   const [servicioDrawerOpen, setServicioDrawerOpen] = useState(false);
   const [despachoDrawerOpen, setDespachoDrawerOpen] = useState(false);
+  const [dashboardData, setDashboardData] = useState({
+    tareasHoy: [] as any[],
+    seguimientosHoy: [] as any[],
+    cotizacionesActivas: 0,
+    facturasVencidas: 0,
+    montoFacturasPendientes: 0,
+    alertas: [] as string[]
+  });
+  const [loading, setLoading] = useState(true);
 
   const handleNavigateWithFallback = (route: string, fallbackAction?: () => void) => {
     try {
@@ -51,31 +60,80 @@ export default function Dashboard() {
     }
   };
 
-  // Datos para Mi Día
-  const tareasHoy = tareasSeed.filter(tarea => {
-    const hoy = new Date();
-    const fechaTarea = new Date(tarea.fecha_vencimiento);
-    return fechaTarea.toDateString() === hoy.toDateString() && tarea.estado !== 'Completada';
-  });
+  const loadDashboardData = async () => {
+    try {
+      const hoy = new Date();
+      const hoyStr = hoy.toISOString().split('T')[0];
 
-  const seguimientosHoy = seguimientosSeed.filter(seg => {
-    const hoy = new Date();
-    const fechaSeg = new Date(seg.proxima_gestion);
-    return fechaSeg.toDateString() === hoy.toDateString();
-  });
+      // Cargar tareas de hoy
+      const { data: tareas } = await supabase
+        .from('tareas')
+        .select('*')
+        .eq('fecha_vencimiento', hoyStr)
+        .neq('estado', 'Completada');
 
-  // KPIs generales
-  const cotizacionesActivas = cotizacionesSeed.filter(c => c.estado === 'Enviada' || c.estado === 'Pendiente').length;
-  const facturasVencidas = facturasSeed.filter(f => f.estado === 'Vencida').length;
-  const montoFacturasPendientes = facturasSeed
-    .filter(f => f.estado === 'Pendiente')
-    .reduce((sum, f) => sum + f.monto, 0);
+      // Cargar seguimientos de hoy
+      const { data: seguimientos } = await supabase
+        .from('seguimientos')
+        .select(`
+          *,
+          clientes (nombre)
+        `)
+        .eq('proxima_gestion', hoyStr);
 
-  const alertas = [
-    `${facturasVencidas} facturas vencidas requieren atención`,
-    `${tareasHoy.length} tareas programadas para hoy`,
-    `${seguimientosHoy.length} seguimientos pendientes`,
-  ];
+      // Cargar cotizaciones activas
+      const { data: cotizaciones } = await supabase
+        .from('cotizaciones')
+        .select('*')
+        .in('estado', ['Enviada', 'Pendiente']);
+
+      // Cargar facturas vencidas
+      const { data: facturas } = await supabase
+        .from('facturas')
+        .select('*')
+        .lt('fecha_vencimiento', hoyStr)
+        .eq('estado', 'Pendiente');
+
+      // Cargar facturas pendientes para monto
+      const { data: facturasPendientes } = await supabase
+        .from('facturas')
+        .select('monto')
+        .eq('estado', 'Pendiente');
+
+      const facturasVencidas = facturas?.length || 0;
+      const cotizacionesActivas = cotizaciones?.length || 0;
+      const montoFacturasPendientes = facturasPendientes?.reduce((sum, f) => sum + (f.monto || 0), 0) || 0;
+      const tareasHoy = tareas || [];
+      const seguimientosHoy = seguimientos || [];
+
+      const alertas = [
+        `${facturasVencidas} facturas vencidas requieren atención`,
+        `${tareasHoy.length} tareas programadas para hoy`,
+        `${seguimientosHoy.length} seguimientos pendientes`,
+      ].filter(alerta => !alerta.startsWith('0'));
+
+      setDashboardData({
+        tareasHoy,
+        seguimientosHoy,
+        cotizacionesActivas,
+        facturasVencidas,
+        montoFacturasPendientes,
+        alertas
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los datos del dashboard",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
   const getPriorityColor = (prioridad: string) => {
     switch (prioridad) {
@@ -134,7 +192,7 @@ export default function Dashboard() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{cotizacionesActivas}</div>
+              <div className="text-2xl font-bold text-primary">{dashboardData.cotizacionesActivas}</div>
               <p className="text-xs text-muted-foreground">En proceso de gestión</p>
             </CardContent>
           </Card>
@@ -145,7 +203,7 @@ export default function Dashboard() {
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{facturasVencidas}</div>
+              <div className="text-2xl font-bold text-red-600">{dashboardData.facturasVencidas}</div>
               <p className="text-xs text-muted-foreground">Requieren gestión inmediata</p>
             </CardContent>
           </Card>
@@ -157,7 +215,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">
-                ${montoFacturasPendientes.toLocaleString('es-CL')}
+                ${dashboardData.montoFacturasPendientes.toLocaleString('es-CL')}
               </div>
               <p className="text-xs text-muted-foreground">En facturas pendientes</p>
             </CardContent>
@@ -169,14 +227,14 @@ export default function Dashboard() {
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{tareasHoy.length}</div>
+              <div className="text-2xl font-bold text-primary">{dashboardData.tareasHoy.length}</div>
               <p className="text-xs text-muted-foreground">Para completar hoy</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Alertas */}
-        {alertas.length > 0 && (
+        {dashboardData.alertas.length > 0 && (
           <Card className="border-orange-200 bg-orange-50">
             <CardHeader>
               <CardTitle className="text-lg flex items-center text-orange-800">
@@ -186,7 +244,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {alertas.map((alerta, index) => (
+                {dashboardData.alertas.map((alerta, index) => (
                   <li key={index} className="flex items-center text-orange-700">
                     <div className="w-2 h-2 bg-orange-500 rounded-full mr-3" />
                     {alerta}
@@ -206,13 +264,13 @@ export default function Dashboard() {
                 Mis Tareas de Hoy
               </CardTitle>
               <CardDescription>
-                {tareasHoy.length} tareas programadas para completar
+                {dashboardData.tareasHoy.length} tareas programadas para completar
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {tareasHoy.length > 0 ? (
-                  tareasHoy.map((tarea) => (
+                {dashboardData.tareasHoy.length > 0 ? (
+                  dashboardData.tareasHoy.map((tarea) => (
                     <div key={tarea.id} className="flex items-start space-x-3 p-3 rounded-lg border">
                       <div className="mt-1">
                         <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -254,21 +312,20 @@ export default function Dashboard() {
                 Seguimientos Programados
               </CardTitle>
               <CardDescription>
-                {seguimientosHoy.length} clientes para contactar hoy
+                {dashboardData.seguimientosHoy.length} clientes para contactar hoy
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {seguimientosHoy.length > 0 ? (
-                  seguimientosHoy.map((seguimiento) => {
-                    const cliente = clientesSeed.find(c => c.id === seguimiento.cliente_id);
+                {dashboardData.seguimientosHoy.length > 0 ? (
+                  dashboardData.seguimientosHoy.map((seguimiento) => {
                     return (
                       <div key={seguimiento.id} className="flex items-start space-x-3 p-3 rounded-lg border">
                         <div className="mt-1">
                           <Users className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="text-sm font-medium">{cliente?.nombre}</p>
+                          <p className="text-sm font-medium">{seguimiento.clientes?.nombre || 'Cliente no encontrado'}</p>
                           <p className="text-xs text-muted-foreground">{seguimiento.notas}</p>
                           <div className="flex items-center space-x-2">
                             <Badge className={getPriorityColor(seguimiento.prioridad)}>

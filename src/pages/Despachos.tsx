@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,13 +19,35 @@ import {
   AlertTriangle,
   MapPin
 } from 'lucide-react';
-import { despachosSeed } from '@/data/seeds';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { DespachoDrawer } from '@/components/drawers/DespachoDrawer';
 
+interface Despacho {
+  id: string;
+  codigo_despacho: string;
+  cliente_nombre: string;
+  cliente_rut?: string;
+  direccion: string;
+  contacto: string;
+  telefono?: string;
+  email?: string;
+  plazo_entrega?: string;
+  estado: 'Pendiente' | 'En Preparación' | 'En Tránsito' | 'Entregado' | 'Devuelto';
+  tipo: 'normal' | 'express' | 'retiro_cliente';
+  transportista?: string;
+  numero_guia?: string;
+  observaciones?: string;
+  created_at: string;
+  diasParaEntrega: number;
+}
+
 export default function Despachos() {
-  const [despachos] = useState(despachosSeed);
+  const [despachos, setDespachos] = useState<Despacho[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [despachoDrawerOpen, setDespachoDrawerOpen] = useState(false);
 

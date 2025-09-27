@@ -1,109 +1,163 @@
-import React, { useState } from 'react';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { clientesSeed, productosSeed } from '@/data/seeds';
 
 interface ServicioTecnicoDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  servicioId?: string;
 }
 
-export function ServicioTecnicoDrawer({ open, onOpenChange, onSuccess }: ServicioTecnicoDrawerProps) {
+interface Cliente {
+  id: string;
+  nombre: string;
+  rut: string;
+}
+
+export function ServicioTecnicoDrawer({
+  open,
+  onOpenChange,
+  onSuccess,
+  servicioId
+}: ServicioTecnicoDrawerProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  
   const [formData, setFormData] = useState({
+    tipo: '',
     cliente_id: '',
+    contacto_cliente: '',
+    telefono_contacto: '',
     equipo: '',
     marca: '',
     modelo: '',
     numero_serie: '',
-    tipo: 'Correctivo',
-    origen: 'Cliente',
-    descripcion: '',
     prioridad: 'media',
-    fecha_programada: undefined as Date | undefined,
-    contacto_cliente: '',
-    telefono_contacto: ''
+    origen: '',
+    descripcion: '',
+    fecha_programada: '',
+    observaciones: ''
   });
 
-  const { toast } = useToast();
+  const loadClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nombre, rut')
+        .order('nombre');
 
-  const clienteSeleccionado = clientesSeed.find(c => c.id === formData.cliente_id);
+      if (error) throw error;
+      setClientes(data || []);
+    } catch (error) {
+      console.error('Error loading clientes:', error);
+    }
+  };
+
+  const loadServicio = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('servicios_tecnicos')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      
+      setFormData({
+        tipo: data.tipo || '',
+        cliente_id: data.cliente_id || '',
+        contacto_cliente: data.contacto_cliente || '',
+        telefono_contacto: data.telefono_contacto || '',
+        equipo: data.equipo || '',
+        marca: data.marca || '',
+        modelo: data.modelo || '',
+        numero_serie: data.numero_serie || '',
+        prioridad: data.prioridad || 'media',
+        origen: data.origen || '',
+        descripcion: data.descripcion || '',
+        fecha_programada: data.fecha_programada ? data.fecha_programada.split('T')[0] : '',
+        observaciones: data.observaciones || ''
+      });
+    } catch (error) {
+      console.error('Error loading servicio:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      loadClientes();
+      if (servicioId) {
+        loadServicio(servicioId);
+      } else {
+        // Reset form
+        setFormData({
+          tipo: '',
+          cliente_id: '',
+          contacto_cliente: '',
+          telefono_contacto: '',
+          equipo: '',
+          marca: '',
+          modelo: '',
+          numero_serie: '',
+          prioridad: 'media',
+          origen: '',
+          descripcion: '',
+          fecha_programada: '',
+          observaciones: ''
+        });
+      }
+    }
+  }, [open, servicioId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.cliente_id || !formData.equipo || !formData.descripcion) {
-      toast({
-        title: "Error",
-        description: "Cliente, equipo y descripción son obligatorios",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('servicios_tecnicos')
-        .insert({
-          cliente_id: formData.cliente_id,
-          equipo: formData.equipo,
-          marca: formData.marca || null,
-          modelo: formData.modelo || null,
-          numero_serie: formData.numero_serie || null,
-          tipo: formData.tipo,
-          origen: formData.origen,
-          descripcion: formData.descripcion,
-          prioridad: formData.prioridad,
-          estado: 'pendiente',
-          fecha_programada: formData.fecha_programada?.toISOString().split('T')[0],
-          contacto_cliente: formData.contacto_cliente || null,
-          telefono_contacto: formData.telefono_contacto || null
+      const dataToSubmit = {
+        ...formData,
+        fecha_programada: formData.fecha_programada || null,
+      };
+
+      if (servicioId) {
+        const { error } = await supabase
+          .from('servicios_tecnicos')
+          .update(dataToSubmit)
+          .eq('id', servicioId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Servicio actualizado",
+          description: "El servicio técnico se ha actualizado correctamente",
         });
+      } else {
+        const { error } = await supabase
+          .from('servicios_tecnicos')
+          .insert(dataToSubmit);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Éxito",
-        description: "Orden de servicio técnico creada correctamente",
-      });
-
-      // Reset form
-      setFormData({
-        cliente_id: '',
-        equipo: '',
-        marca: '',
-        modelo: '',
-        numero_serie: '',
-        tipo: 'Correctivo',
-        origen: 'Cliente',
-        descripcion: '',
-        prioridad: 'media',
-        fecha_programada: undefined,
-        contacto_cliente: '',
-        telefono_contacto: ''
-      });
+        toast({
+          title: "Servicio creado",
+          description: "El servicio técnico se ha creado correctamente",
+        });
+      }
 
       onOpenChange(false);
       onSuccess?.();
-    } catch (error) {
-      console.error('Error creating service order:', error);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "No se pudo crear la orden de servicio",
+        description: error.message || "No se pudo guardar el servicio",
         variant: "destructive",
       });
     } finally {
@@ -111,97 +165,100 @@ export function ServicioTecnicoDrawer({ open, onOpenChange, onSuccess }: Servici
     }
   };
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Nueva Orden de Servicio</SheetTitle>
-          <SheetDescription>
-            Crear una nueva orden de servicio técnico
-          </SheetDescription>
-        </SheetHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-          <div className="space-y-2">
-            <Label>Cliente *</Label>
-            <Select
-              value={formData.cliente_id}
-              onValueChange={(value) => setFormData({ ...formData, cliente_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clientesSeed.map((cliente) => (
-                  <SelectItem key={cliente.id} value={cliente.id}>
-                    <div>
-                      <div className="font-medium">{cliente.nombre}</div>
-                      <div className="text-sm text-muted-foreground">{cliente.rut}</div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="max-h-[90vh]">
+        <DrawerHeader>
+          <DrawerTitle>
+            {servicioId ? 'Editar Servicio Técnico' : 'Nuevo Servicio Técnico'}
+          </DrawerTitle>
+          <DrawerDescription>
+            Complete la información del servicio técnico
+          </DrawerDescription>
+        </DrawerHeader>
+        
+        <form onSubmit={handleSubmit} className="px-4 pb-4 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tipo de Servicio</Label>
-              <Select
-                value={formData.tipo}
-                onValueChange={(value) => setFormData({ ...formData, tipo: value })}
-              >
+              <Label htmlFor="tipo">Tipo de Servicio *</Label>
+              <Select value={formData.tipo} onValueChange={(value) => handleInputChange('tipo', value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Correctivo">Correctivo</SelectItem>
-                  <SelectItem value="Preventivo">Preventivo</SelectItem>
-                  <SelectItem value="Instalación">Instalación</SelectItem>
-                  <SelectItem value="Calibración">Calibración</SelectItem>
-                  <SelectItem value="Capacitación">Capacitación</SelectItem>
+                  <SelectItem value="correctivo">Correctivo</SelectItem>
+                  <SelectItem value="preventivo">Preventivo</SelectItem>
+                  <SelectItem value="instalacion">Instalación</SelectItem>
+                  <SelectItem value="capacitacion">Capacitación</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Origen</Label>
-              <Select
-                value={formData.origen}
-                onValueChange={(value) => setFormData({ ...formData, origen: value })}
-              >
+              <Label htmlFor="cliente_id">Cliente *</Label>
+              <Select value={formData.cliente_id} onValueChange={(value) => handleInputChange('cliente_id', value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Cliente">Cliente</SelectItem>
-                  <SelectItem value="Interno">Interno</SelectItem>
-                  <SelectItem value="Garantía">Garantía</SelectItem>
-                  <SelectItem value="Contrato">Contrato</SelectItem>
+                  {clientes.map(cliente => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.nombre} - {cliente.rut}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="contacto_cliente">Contacto Cliente</Label>
+              <Input
+                id="contacto_cliente"
+                value={formData.contacto_cliente}
+                onChange={(e) => handleInputChange('contacto_cliente', e.target.value)}
+                placeholder="Nombre del contacto"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="telefono_contacto">Teléfono Contacto</Label>
+              <Input
+                id="telefono_contacto"
+                value={formData.telefono_contacto}
+                onChange={(e) => handleInputChange('telefono_contacto', e.target.value)}
+                placeholder="+56 9 1234 5678"
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="equipo">Equipo/Producto *</Label>
+            <Label htmlFor="equipo">Equipo *</Label>
             <Input
               id="equipo"
               value={formData.equipo}
-              onChange={(e) => setFormData({ ...formData, equipo: e.target.value })}
-              placeholder="Nombre del equipo o producto"
+              onChange={(e) => handleInputChange('equipo', e.target.value)}
+              placeholder="Descripción del equipo"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="marca">Marca</Label>
               <Input
                 id="marca"
                 value={formData.marca}
-                onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
-                placeholder="Marca del equipo"
+                onChange={(e) => handleInputChange('marca', e.target.value)}
+                placeholder="Marca"
               />
             </div>
 
@@ -210,123 +267,103 @@ export function ServicioTecnicoDrawer({ open, onOpenChange, onSuccess }: Servici
               <Input
                 id="modelo"
                 value={formData.modelo}
-                onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
-                placeholder="Modelo del equipo"
+                onChange={(e) => handleInputChange('modelo', e.target.value)}
+                placeholder="Modelo"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="numero_serie">N° Serie</Label>
+              <Input
+                id="numero_serie"
+                value={formData.numero_serie}
+                onChange={(e) => handleInputChange('numero_serie', e.target.value)}
+                placeholder="Número de serie"
               />
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="prioridad">Prioridad</Label>
+              <Select value={formData.prioridad} onValueChange={(value) => handleInputChange('prioridad', value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baja">Baja</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="alta">Alta</SelectItem>
+                  <SelectItem value="urgente">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="origen">Origen *</Label>
+              <Select value={formData.origen} onValueChange={(value) => handleInputChange('origen', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="telefono">Teléfono</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="presencial">Presencial</SelectItem>
+                  <SelectItem value="preventivo">Preventivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="numero_serie">Número de Serie</Label>
+            <Label htmlFor="fecha_programada">Fecha Programada</Label>
             <Input
-              id="numero_serie"
-              value={formData.numero_serie}
-              onChange={(e) => setFormData({ ...formData, numero_serie: e.target.value })}
-              placeholder="Número de serie del equipo"
+              id="fecha_programada"
+              type="date"
+              value={formData.fecha_programada}
+              onChange={(e) => handleInputChange('fecha_programada', e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="descripcion">Descripción del Problema/Servicio *</Label>
+            <Label htmlFor="descripcion">Descripción del Problema *</Label>
             <Textarea
               id="descripcion"
               value={formData.descripcion}
-              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-              placeholder="Describe el problema o servicio requerido"
-              rows={3}
+              onChange={(e) => handleInputChange('descripcion', e.target.value)}
+              placeholder="Descripción detallada del problema o servicio requerido"
               required
+              rows={3}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Prioridad</Label>
-            <Select
-              value={formData.prioridad}
-              onValueChange={(value) => setFormData({ ...formData, prioridad: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="baja">Baja</SelectItem>
-                <SelectItem value="media">Media</SelectItem>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="urgente">Urgente</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="observaciones">Observaciones</Label>
+            <Textarea
+              id="observaciones"
+              value={formData.observaciones}
+              onChange={(e) => handleInputChange('observaciones', e.target.value)}
+              placeholder="Observaciones adicionales"
+              rows={2}
+            />
           </div>
 
-          <div className="space-y-2">
-            <Label>Fecha Programada</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.fecha_programada ? (
-                    format(formData.fecha_programada, "PPP", { locale: es })
-                  ) : (
-                    <span>Seleccionar fecha</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={formData.fecha_programada}
-                  onSelect={(date) => setFormData({ ...formData, fecha_programada: date })}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="border-t pt-4 space-y-3">
-            <h4 className="font-medium">Información de Contacto</h4>
-            
-            <div className="space-y-2">
-              <Label htmlFor="contacto_cliente">Contacto en Cliente</Label>
-              <Input
-                id="contacto_cliente"
-                value={formData.contacto_cliente}
-                onChange={(e) => setFormData({ ...formData, contacto_cliente: e.target.value })}
-                placeholder="Nombre del contacto"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="telefono_contacto">Teléfono de Contacto</Label>
-              <Input
-                id="telefono_contacto"
-                value={formData.telefono_contacto}
-                onChange={(e) => setFormData({ ...formData, telefono_contacto: e.target.value })}
-                placeholder="+56 9 1234 5678"
-              />
-            </div>
-          </div>
-
-          <div className="flex space-x-2 pt-4">
+          <div className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1"
+              disabled={loading}
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="flex-1"
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear Orden
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Guardando...' : (servicioId ? 'Actualizar' : 'Crear')}
             </Button>
           </div>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

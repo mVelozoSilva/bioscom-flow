@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,12 +19,26 @@ import {
   Calendar,
   Settings
 } from 'lucide-react';
-import { usuariosSeed } from '@/data/seeds';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: string;
+  departamento: string;
+  ultimo_acceso: string;
+  estado: 'Activo' | 'Inactivo';
+  fecha_creacion: string;
+}
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function Usuarios() {
-  const [usuarios] = useState(usuariosSeed);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
 
   const getEstadoColor = (activo: boolean) => {
