@@ -29,7 +29,7 @@ interface Usuario {
   rol: string;
   departamento: string;
   ultimo_acceso: string;
-  estado: 'Activo' | 'Inactivo';
+  activo: boolean;
   fecha_creacion: string;
 }
 import { format } from 'date-fns';
@@ -179,7 +179,7 @@ export default function Usuarios() {
 
   const estadisticas = {
     total: usuarios.length,
-    activos: usuarios.filter(u => u.activo).length,
+    activos: usuarios.filter(u => u.activo === true).length,
     admins: usuarios.filter(u => u.rol === 'admin').length,
     vendedores: usuarios.filter(u => u.rol === 'vendedor').length,
     tecnicos: usuarios.filter(u => u.rol === 'tecnico').length,

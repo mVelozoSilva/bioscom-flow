@@ -191,7 +191,7 @@ export default function Despachos() {
   const estadisticas = {
     total: despachos.length,
     pendientes: despachos.filter(d => d.estado === 'Pendiente').length,
-    enTransito: despachos.filter(d => d.estado === 'Despachado').length,
+    enTransito: despachos.filter(d => d.estado === 'En Tránsito').length,
     entregados: despachos.filter(d => d.estado === 'Entregado').length,
     vencidos: despachos.filter(d => {
       const fecha = new Date(d.plazo_entrega);
