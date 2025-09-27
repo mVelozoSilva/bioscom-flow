@@ -22,6 +22,7 @@ import {
   Receipt,
   RefreshCw
 } from 'lucide-react';
+import { PagoDrawer } from '@/components/drawers/PagoDrawer';
 
 interface Pago {
   id: string;
@@ -45,6 +46,8 @@ interface Pago {
 export default function Pagos() {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagoDrawerOpen, setPagoDrawerOpen] = useState(false);
+  const [selectedPago, setSelectedPago] = useState<any>(null);
   const { toast } = useToast();
 
   const loadPagos = async () => {
@@ -170,8 +173,16 @@ export default function Pagos() {
     {
       id: 'actions',
       cell: ({ row }) => {
+        const pago = row.original;
         return (
-          <Button variant="ghost" className="h-8 w-8 p-0">
+          <Button 
+            variant="ghost" 
+            className="h-8 w-8 p-0"
+            onClick={() => {
+              setSelectedPago(pago);
+              setPagoDrawerOpen(true);
+            }}
+          >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         );
@@ -208,7 +219,10 @@ export default function Pagos() {
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </Button>
-            <Button>
+            <Button onClick={() => {
+              setSelectedPago(null);
+              setPagoDrawerOpen(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Registrar Pago
             </Button>
@@ -309,6 +323,19 @@ export default function Pagos() {
             />
           </CardContent>
         </Card>
+
+        {/* PagoDrawer */}
+        <PagoDrawer
+          open={pagoDrawerOpen}
+          onOpenChange={(open) => {
+            setPagoDrawerOpen(open);
+            if (!open) {
+              setSelectedPago(null);
+            }
+          }}
+          pago={selectedPago}
+          onSave={loadPagos}
+        />
       </div>
     </Layout>
   );

@@ -22,10 +22,13 @@ import {
   Download,
   RefreshCw
 } from 'lucide-react';
+import { FacturaDrawer } from '@/components/drawers/FacturaDrawer';
 
 export default function Facturas() {
   const [facturas, setFacturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [facturaDrawerOpen, setFacturaDrawerOpen] = useState(false);
+  const [selectedFactura, setSelectedFactura] = useState<any>(null);
   const { toast } = useToast();
 
   const getEstadoColor = (estado: string) => {
@@ -163,8 +166,16 @@ export default function Facturas() {
     {
       id: 'actions',
       cell: ({ row }) => {
+        const factura = row.original;
         return (
-          <Button variant="ghost" className="h-8 w-8 p-0">
+          <Button 
+            variant="ghost" 
+            className="h-8 w-8 p-0"
+            onClick={() => {
+              setSelectedFactura(factura);
+              setFacturaDrawerOpen(true);
+            }}
+          >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         );
@@ -233,7 +244,10 @@ export default function Facturas() {
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </Button>
-            <Button>
+            <Button onClick={() => {
+              setSelectedFactura(null);
+              setFacturaDrawerOpen(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Nueva Factura
             </Button>
@@ -331,6 +345,19 @@ export default function Facturas() {
             />
           </CardContent>
         </Card>
+
+        {/* FacturaDrawer */}
+        <FacturaDrawer
+          open={facturaDrawerOpen}
+          onOpenChange={(open) => {
+            setFacturaDrawerOpen(open);
+            if (!open) {
+              setSelectedFactura(null);
+            }
+          }}
+          factura={selectedFactura}
+          onSave={loadFacturas}
+        />
       </div>
     </Layout>
   );
