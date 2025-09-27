@@ -625,17 +625,18 @@ Bioscom Chile`;
                           <div className="flex items-start justify-between">
                             <div className="flex gap-3">
                               <div className="p-2 rounded-lg bg-primary/10">
-                                {tipoGestionOptions.find(t => t.value === gestion.tipo)?.icon && 
-                                  React.createElement(tipoGestionOptions.find(t => t.value === gestion.tipo)!.icon, { className: "h-4 w-4 text-primary" })
-                                }
+                                {(() => {
+                                  const tipoOption = tipoGestionOptions.find(t => t.value === gestion.tipo);
+                                  return tipoOption?.icon ? React.createElement(tipoOption.icon, { className: "h-4 w-4 text-primary" }) : null;
+                                })()}
                               </div>
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">
-                                    {tipoGestionOptions.find(t => t.value === gestion.tipo)?.label}
+                                    {tipoGestionOptions.find(t => t.value === gestion.tipo)?.label || gestion.tipo}
                                   </span>
                                   <Badge variant="outline">
-                                    {resultadoOptions.find(r => r.value === gestion.resultado)?.label}
+                                    {resultadoOptions.find(r => r.value === gestion.resultado)?.label || gestion.resultado}
                                   </Badge>
                                 </div>
                                 <p className="text-sm text-muted-foreground">

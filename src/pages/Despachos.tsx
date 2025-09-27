@@ -127,6 +127,11 @@ export default function Despachos() {
       header: 'Fecha Entrega',
       cell: ({ row }) => {
         const fecha = row.getValue('plazo_entrega') as string;
+        
+        if (!fecha) {
+          return <span className="text-muted-foreground">Sin fecha</span>;
+        }
+        
         const diasEntrega = calcularDiasEntrega(fecha);
         
         return (
@@ -194,6 +199,7 @@ export default function Despachos() {
     enTransito: despachos.filter(d => d.estado === 'En Tránsito').length,
     entregados: despachos.filter(d => d.estado === 'Entregado').length,
     vencidos: despachos.filter(d => {
+      if (!d.plazo_entrega) return false;
       const fecha = new Date(d.plazo_entrega);
       return fecha < new Date() && d.estado !== 'Entregado';
     }).length,
