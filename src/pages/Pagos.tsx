@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   CreditCard, 
   Plus, 
@@ -17,14 +19,13 @@ import {
   CheckCircle,
   Upload,
   Download,
-  Receipt
+  Receipt,
+  RefreshCw
 } from 'lucide-react';
 
 interface Pago {
   id: string;
   factura_id: string;
-  numero_factura: string;
-  cliente: string;
   monto: number;
   fecha_pago: string;
   tipo: string;
@@ -32,50 +33,52 @@ interface Pago {
   verificado: boolean;
   archivo_url?: string;
   created_at: string;
+  // Relations
+  facturas?: {
+    numero_factura: string;
+    clientes?: {
+      nombre: string;
+    };
+  };
 }
 
-// Datos de ejemplo para pagos
-const pagosSeed: Pago[] = [
-  {
-    id: '1',
-    factura_id: '1',
-    numero_factura: 'F001-00001',
-    cliente: 'Hospital Regional',
-    monto: 850000,
-    fecha_pago: '2024-01-15',
-    tipo: 'Transferencia',
-    referencia: 'TRF-2024-0115',
-    verificado: true,
-    created_at: '2024-01-15T10:30:00Z'
-  },
-  {
-    id: '2',
-    factura_id: '2',
-    numero_factura: 'F001-00002',
-    cliente: 'Clínica Santa María',
-    monto: 1250000,
-    fecha_pago: '2024-01-10',
-    tipo: 'Cheque',
-    referencia: 'CHQ-789456',
-    verificado: true,
-    created_at: '2024-01-10T14:45:00Z'
-  },
-  {
-    id: '3',
-    factura_id: '5',
-    numero_factura: 'F001-00005',
-    cliente: 'Universidad Católica',
-    monto: 450000,
-    fecha_pago: '2024-01-20',
-    tipo: 'Transferencia',
-    referencia: 'TRF-2024-0120',
-    verificado: false,
-    created_at: '2024-01-20T09:15:00Z'
-  }
-];
-
 export default function Pagos() {
-  const [pagos] = useState<Pago[]>(pagosSeed);
+  const [pagos, setPagos] = useState<Pago[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  const loadPagos = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('pagos')
+        .select(`
+          *,
+          facturas (
+            numero_factura,
+            clientes (
+              nombre
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPagos(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los pagos",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPagos();
+  }, []);
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
@@ -89,14 +92,15 @@ export default function Pagos() {
 
   const columns: ColumnDef<Pago>[] = [
     {
-      accessorKey: 'numero_factura',
+      accessorKey: 'facturas.numero_factura',
       header: 'Factura',
       cell: ({ row }) => {
         const pago = row.original;
+        const factura = pago.facturas;
         return (
           <div className="space-y-1">
-            <div className="font-medium">{pago.numero_factura}</div>
-            <div className="text-sm text-muted-foreground">{pago.cliente}</div>
+            <div className="font-medium">{factura?.numero_factura || 'N/A'}</div>
+            <div className="text-sm text-muted-foreground">{factura?.clientes?.nombre || 'Cliente no encontrado'}</div>
           </div>
         );
       },
@@ -196,6 +200,10 @@ export default function Pagos() {
             </p>
           </div>
           <div className="flex space-x-2">
+            <Button variant="outline" onClick={loadPagos} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
             <Button variant="outline">
               <Upload className="h-4 w-4 mr-2" />
               Importar
@@ -295,7 +303,8 @@ export default function Pagos() {
             <DataTable 
               columns={columns} 
               data={pagos}
-              searchKey="numero_factura"
+              loading={loading}
+              searchKey="facturas.numero_factura"
               searchPlaceholder="Buscar por factura, cliente o referencia..."
             />
           </CardContent>

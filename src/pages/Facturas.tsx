@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Receipt, 
   Plus, 
@@ -17,13 +19,14 @@ import {
   AlertTriangle,
   CheckCircle,
   Upload,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
-import { facturasSeed } from '@/data/seeds';
 
 export default function Facturas() {
-  const [facturas] = useState(facturasSeed);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [facturas, setFacturas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -70,13 +73,15 @@ export default function Facturas() {
       },
     },
     {
-      accessorKey: 'rut_cliente',
+      accessorKey: 'clientes.nombre',
       header: 'Cliente',
       cell: ({ row }) => {
         const factura = row.original;
+        const cliente = factura.clientes;
         return (
           <div className="space-y-1">
-            <div className="text-sm text-muted-foreground">{factura.rut_cliente}</div>
+            <div className="font-medium">{cliente?.nombre || 'Cliente no encontrado'}</div>
+            <div className="text-sm text-muted-foreground">{cliente?.rut || factura.rut_cliente}</div>
           </div>
         );
       },
@@ -167,14 +172,45 @@ export default function Facturas() {
     },
   ];
 
+  const loadFacturas = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('facturas')
+        .select(`
+          *,
+          clientes (
+            nombre,
+            rut
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setFacturas(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las facturas",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFacturas();
+  }, []);
+
   const estadisticas = {
     total: facturas.length,
     pagadas: facturas.filter(f => f.estado === 'Pagada').length,
     pendientes: facturas.filter(f => f.estado === 'Pendiente').length,
     vencidas: facturas.filter(f => f.estado === 'Vencida').length,
-    montoTotal: facturas.reduce((acc, f) => acc + f.monto, 0),
-    montoPendiente: facturas.filter(f => f.estado === 'Pendiente').reduce((acc, f) => acc + f.monto, 0),
-    montoVencido: facturas.filter(f => f.estado === 'Vencida').reduce((acc, f) => acc + f.monto, 0),
+    montoTotal: facturas.reduce((acc, f) => acc + (f.monto || 0), 0),
+    montoPendiente: facturas.filter(f => f.estado === 'Pendiente').reduce((acc, f) => acc + (f.monto || 0), 0),
+    montoVencido: facturas.filter(f => f.estado === 'Vencida').reduce((acc, f) => acc + (f.monto || 0), 0),
   };
 
   return (
@@ -189,6 +225,10 @@ export default function Facturas() {
             </p>
           </div>
           <div className="flex space-x-2">
+            <Button variant="outline" onClick={loadFacturas} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
             <Button variant="outline">
               <Upload className="h-4 w-4 mr-2" />
               Importar
@@ -285,6 +325,7 @@ export default function Facturas() {
             <DataTable 
               columns={columns} 
               data={facturas}
+              loading={loading}
               searchKey="numero_factura"
               searchPlaceholder="Buscar por número, RUT o OT/OC..."
             />
