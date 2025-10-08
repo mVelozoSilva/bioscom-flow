@@ -30,13 +30,17 @@ import {
   Mail,
   Archive,
   CheckCircle,
-  Calendar
+  Calendar,
+  Filter as FilterIcon
 } from 'lucide-react';
 import { clientesDAL, Cliente } from '@/dal/clientes';
 import { exportToCSV, formatDateForExport, ExportColumn } from '@/lib/export-utils';
 import { ConfirmActionDialog } from '@/components/clientes/ConfirmActionDialog';
 import { CambiarEstadoDialog } from '@/components/clientes/CambiarEstadoDialog';
+import { FiltersDrawer } from '@/components/clientes/FiltersDrawer';
+import { FilterChips } from '@/components/clientes/FilterChips';
 import { supabase } from '@/integrations/supabase/client';
+import { useFilters } from '@/hooks/use-filters';
 
 // Tipos extendidos para incluir información de vendedor y próxima acción
 interface ClienteExtendido extends Cliente {
@@ -58,6 +62,22 @@ export default function Clientes() {
   const [cambiarEstadoDialogOpen, setCambiarEstadoDialogOpen] = useState(false);
   const [archivarDialogOpen, setArchivarDialogOpen] = useState(false);
   const [clienteParaAccion, setClienteParaAccion] = useState<ClienteExtendido | null>(null);
+  
+  // Estados para panel de filtros
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
+  
+  // Hook de filtros con persistencia
+  const {
+    filtros,
+    actualizarFiltro,
+    limpiarFiltros,
+    vistasGuardadas,
+    guardarVista,
+    aplicarVista,
+    eliminarVista,
+    contarFiltrosActivos,
+    hayFiltrosActivos,
+  } = useFilters();
 
   // Cargar clientes desde Supabase
   useEffect(() => {
@@ -88,6 +108,95 @@ export default function Clientes() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Aplicar filtros a los clientes
+  const clientesFiltrados = useMemo(() => {
+    let resultado = [...clientes];
+
+    // Filtro de texto global
+    if (filtros.texto) {
+      const textoLower = filtros.texto.toLowerCase();
+      resultado = resultado.filter(c => 
+        c.nombre.toLowerCase().includes(textoLower) ||
+        c.rut.toLowerCase().includes(textoLower)
+      );
+    }
+
+    // Filtro de estados
+    if (filtros.estados.length > 0) {
+      resultado = resultado.filter(c => filtros.estados.includes(c.estado_relacional));
+    }
+
+    // Filtro de vendedor
+    if (filtros.vendedor) {
+      resultado = resultado.filter(c => c.vendedor === filtros.vendedor);
+    }
+
+    // Filtro de rango de fechas
+    if (filtros.fechaDesde || filtros.fechaHasta) {
+      resultado = resultado.filter(c => {
+        if (!c.last_interaction_at) return false;
+        const fechaCliente = new Date(c.last_interaction_at);
+        
+        if (filtros.fechaDesde && fechaCliente < filtros.fechaDesde) {
+          return false;
+        }
+        
+        if (filtros.fechaHasta && fechaCliente > filtros.fechaHasta) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+
+    return resultado;
+  }, [clientes, filtros]);
+
+  // Handler para remover un filtro específico
+  const handleRemoverFiltro = (campo: keyof typeof filtros) => {
+    if (campo === 'fechaDesde') {
+      actualizarFiltro('fechaDesde', undefined);
+      actualizarFiltro('fechaHasta', undefined);
+    } else if (campo === 'estados') {
+      actualizarFiltro('estados', []);
+    } else if (campo === 'texto' || campo === 'vendedor') {
+      actualizarFiltro(campo, '');
+    }
+  };
+
+  // Handler para guardar vista con feedback
+  const handleGuardarVista = (nombre: string) => {
+    guardarVista(nombre);
+    toast({
+      title: "Vista guardada",
+      description: `La vista "${nombre}" se guardó correctamente.`,
+    });
+  };
+
+  // Handler para aplicar vista con feedback
+  const handleAplicarVista = (vistaId: string) => {
+    aplicarVista(vistaId);
+    const vista = vistasGuardadas.find(v => v.id === vistaId);
+    if (vista) {
+      toast({
+        title: "Vista aplicada",
+        description: `Filtros de "${vista.nombre}" aplicados.`,
+      });
+    }
+  };
+
+  // Handler para eliminar vista con feedback
+  const handleEliminarVista = (vistaId: string) => {
+    const vista = vistasGuardadas.find(v => v.id === vistaId);
+    eliminarVista(vistaId);
+    if (vista) {
+      toast({
+        title: "Vista eliminada",
+        description: `La vista "${vista.nombre}" fue eliminada.`,
+      });
     }
   };
 
@@ -478,10 +587,11 @@ export default function Clientes() {
   ];
 
   const estadisticas = {
-    total: clientes.length,
-    nuevos: clientes.filter(c => c.estado_relacional === 'Nuevo').length,
-    activos: clientes.filter(c => c.estado_relacional === 'Activo').length,
-    scorePromedio: clientes.length > 0 ? Math.round(clientes.reduce((acc, c) => acc + c.score, 0) / clientes.length) : 0,
+    total: clientesFiltrados.length,
+    totalGeneral: clientes.length,
+    nuevos: clientesFiltrados.filter(c => c.estado_relacional === 'Nuevo').length,
+    activos: clientesFiltrados.filter(c => c.estado_relacional === 'Activo').length,
+    scorePromedio: clientesFiltrados.length > 0 ? Math.round(clientesFiltrados.reduce((acc, c) => acc + c.score, 0) / clientesFiltrados.length) : 0,
   };
 
   return (
@@ -549,20 +659,51 @@ export default function Clientes() {
         {/* Tabla de clientes */}
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Clientes</CardTitle>
-            <CardDescription>
-              {clientes.length} clientes registrados en el sistema
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Lista de Clientes</CardTitle>
+                <CardDescription>
+                  {hayFiltrosActivos() 
+                    ? `${clientesFiltrados.length} de ${estadisticas.totalGeneral} clientes` 
+                    : `${estadisticas.totalGeneral} clientes registrados`}
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFiltersDrawerOpen(true)}
+                className="gap-2"
+              >
+                <FilterIcon className="h-4 w-4" />
+                Filtros
+                {contarFiltrosActivos() > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {contarFiltrosActivos()}
+                  </Badge>
+                )}
+              </Button>
+            </div>
+            
+            {/* Chips de filtros activos */}
+            {hayFiltrosActivos() && (
+              <div className="mt-4">
+                <FilterChips
+                  filtros={filtros}
+                  onRemoveFiltro={handleRemoverFiltro}
+                  onLimpiarTodo={limpiarFiltros}
+                />
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <AdvancedDataTable 
               columns={columns} 
-              data={clientes}
+              data={clientesFiltrados}
               searchPlaceholder="Buscar por RUT, razón social..."
-              filters={filters}
+              filters={[]}
               onExport={handleExportCSV}
               loading={loading}
-              emptyMessage="No se encontraron clientes."
+              emptyMessage="No se encontraron clientes con los filtros aplicados."
               pageSize={10}
               storageKey="clientes-table"
             />
@@ -612,6 +753,19 @@ export default function Clientes() {
             )}
           </SheetContent>
         </Sheet>
+
+        {/* Panel lateral de filtros avanzados */}
+        <FiltersDrawer
+          open={filtersDrawerOpen}
+          onOpenChange={setFiltersDrawerOpen}
+          filtros={filtros}
+          onActualizarFiltro={actualizarFiltro}
+          onLimpiarFiltros={limpiarFiltros}
+          vistasGuardadas={vistasGuardadas}
+          onGuardarVista={handleGuardarVista}
+          onAplicarVista={handleAplicarVista}
+          onEliminarVista={handleEliminarVista}
+        />
 
         {/* Diálogo para cambiar estado */}
         <CambiarEstadoDialog
