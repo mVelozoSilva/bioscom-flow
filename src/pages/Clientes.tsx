@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AdvancedDataTable, DataTableFilter } from '@/components/ui/advanced-data-table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -27,10 +27,16 @@ import {
   PhoneCall,
   MoreHorizontal,
   ArrowUpDown,
-  Mail
+  Mail,
+  Archive,
+  CheckCircle,
+  Calendar
 } from 'lucide-react';
 import { clientesDAL, Cliente } from '@/dal/clientes';
 import { exportToCSV, formatDateForExport, ExportColumn } from '@/lib/export-utils';
+import { ConfirmActionDialog } from '@/components/clientes/ConfirmActionDialog';
+import { CambiarEstadoDialog } from '@/components/clientes/CambiarEstadoDialog';
+import { supabase } from '@/integrations/supabase/client';
 
 // Tipos extendidos para incluir información de vendedor y próxima acción
 interface ClienteExtendido extends Cliente {
@@ -47,6 +53,11 @@ export default function Clientes() {
   const [clienteDrawerOpen, setClienteDrawerOpen] = useState(false);
   const [clienteDetalleOpen, setClienteDetalleOpen] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteExtendido | null>(null);
+  
+  // Estados para diálogos de confirmación
+  const [cambiarEstadoDialogOpen, setCambiarEstadoDialogOpen] = useState(false);
+  const [archivarDialogOpen, setArchivarDialogOpen] = useState(false);
+  const [clienteParaAccion, setClienteParaAccion] = useState<ClienteExtendido | null>(null);
 
   // Cargar clientes desde Supabase
   useEffect(() => {
@@ -80,30 +91,140 @@ export default function Clientes() {
     }
   };
 
-  const abrirDetalleCliente = (cliente: ClienteExtendido) => {
+  // Handlers para acciones de clientes
+  const handleVerDetalle = (cliente: ClienteExtendido) => {
     setClienteSeleccionado(cliente);
     setClienteDetalleOpen(true);
   };
 
-  const editarCliente = (cliente: ClienteExtendido) => {
+  const handleEditar = (cliente: ClienteExtendido) => {
     setClienteSeleccionado(cliente);
     setClienteDrawerOpen(true);
   };
 
-  const eliminarCliente = async (cliente: ClienteExtendido) => {
-    if (!confirm(`¿Está seguro de eliminar a ${cliente.nombre}?`)) return;
-    
+  const handleCrearTarea = (cliente: ClienteExtendido) => {
+    navigate(`/tareas?accion=crear&cliente=${cliente.id}`);
+    toast({
+      title: "Redirigiendo...",
+      description: `Creando nueva tarea para ${cliente.nombre}`,
+    });
+  };
+
+  const handleAgendarLlamada = (cliente: ClienteExtendido) => {
+    navigate(`/seguimientos?accion=crear&cliente=${cliente.id}&tipo=llamada`);
+    toast({
+      title: "Redirigiendo...",
+      description: `Agendando llamada con ${cliente.nombre}`,
+    });
+  };
+
+  const handleCambiarEstado = (cliente: ClienteExtendido) => {
+    setClienteParaAccion(cliente);
+    setCambiarEstadoDialogOpen(true);
+  };
+
+  const handleArchivar = (cliente: ClienteExtendido) => {
+    setClienteParaAccion(cliente);
+    setArchivarDialogOpen(true);
+  };
+
+  // Confirmar cambio de estado
+  const confirmarCambioEstado = async (nuevoEstado: string) => {
+    if (!clienteParaAccion) return;
+
+    // Actualización optimista
+    const clienteAnterior = clientes.find(c => c.id === clienteParaAccion.id);
+    setClientes(prev => 
+      prev.map(c => 
+        c.id === clienteParaAccion.id 
+          ? { ...c, estado_relacional: nuevoEstado as any } 
+          : c
+      )
+    );
+
     try {
-      // TODO: Implementar eliminación en Supabase
-      toast({
-        title: "Cliente eliminado",
-        description: `${cliente.nombre} ha sido eliminado correctamente.`,
+      const { data, error } = await supabase.functions.invoke('cambiar-estado-cliente', {
+        body: { id: clienteParaAccion.id, nuevoEstado }
       });
-      loadClientes();
+
+      if (error) throw error;
+
+      toast({
+        title: "Estado actualizado",
+        description: `El estado de ${clienteParaAccion.nombre} se cambió a ${nuevoEstado}.`,
+      });
+
+      // Recargar datos reales del servidor
+      await loadClientes();
     } catch (error) {
+      console.error('Error al cambiar estado:', error);
+      
+      // Revertir cambio optimista
+      if (clienteAnterior) {
+        setClientes(prev => 
+          prev.map(c => 
+            c.id === clienteParaAccion.id 
+              ? clienteAnterior 
+              : c
+          )
+        );
+      }
+
       toast({
         title: "Error",
-        description: "No se pudo eliminar el cliente.",
+        description: "No se pudo cambiar el estado del cliente.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Confirmar archivado
+  const confirmarArchivar = async () => {
+    if (!clienteParaAccion) return;
+
+    // Actualización optimista - marcar como archivado
+    const clienteAnterior = clientes.find(c => c.id === clienteParaAccion.id);
+    setClientes(prev => 
+      prev.map(c => 
+        c.id === clienteParaAccion.id 
+          ? { ...c, estado_relacional: 'Inactivo' as any, tags: [...(c.tags || []), 'archivado'] } 
+          : c
+      )
+    );
+
+    try {
+      const { data, error } = await supabase.functions.invoke('archivar-cliente', {
+        body: { id: clienteParaAccion.id }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Cliente archivado",
+        description: `${clienteParaAccion.nombre} ha sido archivado correctamente.`,
+      });
+
+      setArchivarDialogOpen(false);
+      
+      // Recargar datos reales del servidor
+      await loadClientes();
+    } catch (error) {
+      console.error('Error al archivar cliente:', error);
+      
+      // Revertir cambio optimista
+      if (clienteAnterior) {
+        setClientes(prev => 
+          prev.map(c => 
+            c.id === clienteParaAccion.id 
+              ? clienteAnterior 
+              : c
+          )
+        );
+      }
+
+      toast({
+        title: "Error",
+        description: "No se pudo archivar el cliente.",
         variant: "destructive"
       });
     }
@@ -306,35 +427,34 @@ export default function Clientes() {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => abrirDetalleCliente(cliente)}>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleVerDetalle(cliente)}>
                 <Eye className="mr-2 h-4 w-4" />
-                Ver detalles
+                Ver
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editarCliente(cliente)}>
+              <DropdownMenuItem onClick={() => handleEditar(cliente)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Editar
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate(`/cotizaciones?cliente=${cliente.id}`)}>
-                <FileText className="mr-2 h-4 w-4" />
-                Ver cotizaciones
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`/tareas?cliente=${cliente.id}`)}>
+              <DropdownMenuItem onClick={() => handleCrearTarea(cliente)}>
                 <ListTodo className="mr-2 h-4 w-4" />
-                Ver tareas
+                Crear Tarea
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`/seguimientos?cliente=${cliente.id}`)}>
-                <PhoneCall className="mr-2 h-4 w-4" />
-                Ver seguimientos
+              <DropdownMenuItem onClick={() => handleAgendarLlamada(cliente)}>
+                <Calendar className="mr-2 h-4 w-4" />
+                Agendar Llamada
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => eliminarCliente(cliente)}
-                className="text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
+              <DropdownMenuItem onClick={() => handleCambiarEstado(cliente)}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Cambiar Estado
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleArchivar(cliente)}>
+                <Archive className="mr-2 h-4 w-4" />
+                Archivar
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -492,6 +612,26 @@ export default function Clientes() {
             )}
           </SheetContent>
         </Sheet>
+
+        {/* Diálogo para cambiar estado */}
+        <CambiarEstadoDialog
+          open={cambiarEstadoDialogOpen}
+          onOpenChange={setCambiarEstadoDialogOpen}
+          cliente={clienteParaAccion}
+          onConfirm={confirmarCambioEstado}
+        />
+
+        {/* Diálogo de confirmación para archivar */}
+        <ConfirmActionDialog
+          open={archivarDialogOpen}
+          onOpenChange={setArchivarDialogOpen}
+          title="¿Archivar cliente?"
+          description={`¿Está seguro de que desea archivar a ${clienteParaAccion?.nombre}? El cliente se marcará como Inactivo.`}
+          onConfirm={confirmarArchivar}
+          confirmText="Archivar"
+          cancelText="Cancelar"
+          variant="default"
+        />
       </div>
     </Layout>
   );
