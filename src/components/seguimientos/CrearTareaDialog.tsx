@@ -116,18 +116,19 @@ export function CrearTareaDialog({
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={vencimiento} onSelect={setVencimiento} initialFocus />
+                <Calendar mode="single" selected={vencimiento} onSelect={setVencimiento} initialFocus className="pointer-events-auto" />
               </PopoverContent>
             </Popover>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="asignado-a">Asignado a</Label>
-            <Select value={asignadoA} onValueChange={setAsignadoA}>
+            <Select value={asignadoA || 'none'} onValueChange={(value) => setAsignadoA(value === 'none' ? '' : value)}>
               <SelectTrigger id="asignado-a">
                 <SelectValue placeholder="Seleccionar usuario" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
                 {USUARIOS.map((usuario) => (
                   <SelectItem key={usuario} value={usuario}>
                     {usuario}

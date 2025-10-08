@@ -106,6 +106,7 @@ export function MoverEtapaDialog({
                     selected={fechaCierre}
                     onSelect={setFechaCierre}
                     initialFocus
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
