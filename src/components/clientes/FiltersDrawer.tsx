@@ -180,14 +180,14 @@ export function FiltersDrawer({
             <div className="space-y-2">
               <Label htmlFor="vendedor">Vendedor</Label>
               <Select
-                value={filtros.vendedor}
-                onValueChange={(value) => onActualizarFiltro('vendedor', value)}
+                value={filtros.vendedor || "all"}
+                onValueChange={(value) => onActualizarFiltro('vendedor', value === "all" ? "" : value)}
               >
                 <SelectTrigger id="vendedor">
                   <SelectValue placeholder="Todos los vendedores" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {VENDEDORES_OPCIONES.map((vendedor) => (
                     <SelectItem key={vendedor} value={vendedor}>
                       {vendedor}
