@@ -1,28 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/bioscom/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { DataTable } from '@/components/ui/data-table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AdvancedDataTable, DataTableFilter } from '@/components/ui/advanced-data-table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
   Users, 
   Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal,
-  Phone,
-  Mail,
-  MapPin,
   Star,
   TrendingUp,
   Eye,
@@ -31,79 +25,81 @@ import {
   ListTodo,
   Trash2,
   PhoneCall,
-  X
+  MoreHorizontal,
+  ArrowUpDown,
+  Mail
 } from 'lucide-react';
-import { Cliente } from '@/types';
-import { clientesSeed } from '@/data/seeds';
+import { clientesDAL, Cliente } from '@/dal/clientes';
+import { exportToCSV, formatDateForExport, ExportColumn } from '@/lib/export-utils';
 
-type FilterType = 'todos' | 'publicos' | 'privados' | 'revendedores' | 'score-alto' | 'nuevos' | 'sin-interaccion';
+// Tipos extendidos para incluir información de vendedor y próxima acción
+interface ClienteExtendido extends Cliente {
+  vendedor?: string;
+  proximaAccion?: string;
+  contactos?: any[];
+}
 
 export default function Clientes() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [clientes] = useState<Cliente[]>(clientesSeed);
-  const [filtroActivo, setFiltroActivo] = useState<FilterType>('todos');
+  const [clientes, setClientes] = useState<ClienteExtendido[]>([]);
+  const [loading, setLoading] = useState(true);
   const [clienteDrawerOpen, setClienteDrawerOpen] = useState(false);
   const [clienteDetalleOpen, setClienteDetalleOpen] = useState(false);
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
-  const [filtrosAvanzadosOpen, setFiltrosAvanzadosOpen] = useState(false);
-  const [filtroAvanzado, setFiltroAvanzado] = useState({
-    tipo: 'todos',
-    vendedor: '',
-    fechaCreacion: ''
-  });
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteExtendido | null>(null);
 
-  // Filtrar clientes basado en filtros activos
-  const clientesFiltrados = useMemo(() => {
-    let resultado = [...clientes];
+  // Cargar clientes desde Supabase
+  useEffect(() => {
+    loadClientes();
+  }, []);
 
-    // Aplicar filtro rápido
-    switch (filtroActivo) {
-      case 'publicos':
-        resultado = resultado.filter(c => c.tipo === 'Público');
-        break;
-      case 'privados':
-        resultado = resultado.filter(c => c.tipo === 'Privado');
-        break;
-      case 'revendedores':
-        resultado = resultado.filter(c => c.tipo === 'Revendedor');
-        break;
-      case 'score-alto':
-        resultado = resultado.filter(c => c.score >= 80);
-        break;
-      case 'nuevos':
-        resultado = resultado.filter(c => c.estado_relacional === 'Nuevo');
-        break;
-      case 'sin-interaccion':
-        resultado = resultado.filter(c => !c.last_interaction_at);
-        break;
+  const loadClientes = async () => {
+    try {
+      setLoading(true);
+      const data = await clientesDAL.listWithContacts();
+      
+      // Extender datos con información adicional (vendedor, próxima acción)
+      const extendedData: ClienteExtendido[] = data.map((cliente: any) => ({
+        ...cliente,
+        vendedor: 'Sin asignar', // TODO: Obtener desde seguimientos o cotizaciones
+        proximaAccion: cliente.last_interaction_at 
+          ? new Date(new Date(cliente.last_interaction_at).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          : undefined,
+      }));
+      
+      setClientes(extendedData);
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los clientes.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Aplicar filtros avanzados
-    if (filtroAvanzado.tipo && filtroAvanzado.tipo !== 'todos') {
-      resultado = resultado.filter(c => c.tipo === filtroAvanzado.tipo);
-    }
-
-    return resultado;
-  }, [clientes, filtroActivo, filtroAvanzado]);
-
-  const abrirDetalleCliente = (cliente: Cliente) => {
+  const abrirDetalleCliente = (cliente: ClienteExtendido) => {
     setClienteSeleccionado(cliente);
     setClienteDetalleOpen(true);
   };
 
-  const editarCliente = (cliente: Cliente) => {
+  const editarCliente = (cliente: ClienteExtendido) => {
     setClienteSeleccionado(cliente);
     setClienteDrawerOpen(true);
   };
 
-  const eliminarCliente = async (cliente: Cliente) => {
+  const eliminarCliente = async (cliente: ClienteExtendido) => {
+    if (!confirm(`¿Está seguro de eliminar a ${cliente.nombre}?`)) return;
+    
     try {
       // TODO: Implementar eliminación en Supabase
       toast({
         title: "Cliente eliminado",
         description: `${cliente.nombre} ha sido eliminado correctamente.`,
       });
+      loadClientes();
     } catch (error) {
       toast({
         title: "Error",
@@ -111,6 +107,36 @@ export default function Clientes() {
         variant: "destructive"
       });
     }
+  };
+
+  // Función para exportar clientes a CSV
+  const handleExportCSV = () => {
+    const exportColumns: ExportColumn[] = [
+      { key: 'rut', header: 'RUT' },
+      { key: 'nombre', header: 'Razón Social' },
+      { key: 'tipo', header: 'Tipo' },
+      { key: 'estado_relacional', header: 'Estado' },
+      { key: 'vendedor', header: 'Vendedor' },
+      { 
+        key: 'last_interaction_at', 
+        header: 'Último Contacto',
+        format: formatDateForExport
+      },
+      { 
+        key: 'proximaAccion', 
+        header: 'Próxima Acción',
+        format: formatDateForExport
+      },
+      { key: 'score', header: 'Score' },
+      { key: 'direccion', header: 'Dirección' },
+    ];
+
+    exportToCSV(clientes, exportColumns, `clientes-${new Date().toISOString().split('T')[0]}.csv`);
+    
+    toast({
+      title: "Exportación exitosa",
+      description: `Se exportaron ${clientes.length} clientes a CSV.`,
+    });
   };
 
   const getTipoColor = (tipo: string) => {
@@ -138,35 +164,77 @@ export default function Clientes() {
     return 'text-red-600';
   };
 
-  const columns: ColumnDef<Cliente>[] = [
+  // Definición de columnas para la tabla
+  const columns: ColumnDef<ClienteExtendido>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Seleccionar todos"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Seleccionar fila"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'rut',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            RUT
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+      cell: ({ row }) => <div className="font-mono">{row.getValue('rut')}</div>,
+    },
     {
       accessorKey: 'nombre',
-      header: 'Cliente',
-      cell: ({ row }) => {
-        const cliente = row.original;
+      header: ({ column }) => {
         return (
-          <div className="space-y-1">
-            <div className="font-medium">{cliente.nombre}</div>
-            <div className="text-sm text-muted-foreground">{cliente.rut}</div>
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Razón Social
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+      cell: ({ row }) => {
+        return (
+          <div className="max-w-[300px]">
+            <div className="font-medium truncate">{row.getValue('nombre')}</div>
           </div>
         );
       },
     },
     {
-      accessorKey: 'tipo',
-      header: 'Tipo',
-      cell: ({ row }) => {
-        const tipo = row.getValue('tipo') as string;
+      accessorKey: 'estado_relacional',
+      id: 'estado_relacional',
+      header: ({ column }) => {
         return (
-          <Badge className={getTipoColor(tipo)}>
-            {tipo}
-          </Badge>
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Estado
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
         );
       },
-    },
-    {
-      accessorKey: 'estado_relacional',
-      header: 'Estado',
       cell: ({ row }) => {
         const estado = row.getValue('estado_relacional') as string;
         return (
@@ -175,60 +243,66 @@ export default function Clientes() {
           </Badge>
         );
       },
-    },
-    {
-      accessorKey: 'score',
-      header: 'Score',
-      cell: ({ row }) => {
-        const score = row.getValue('score') as number;
-        return (
-          <div className={`font-medium ${getScoreColor(score)}`}>
-            <Star className="h-4 w-4 inline mr-1" />
-            {score}
-          </div>
-        );
+      filterFn: (row, id, value) => {
+        return value === row.getValue(id);
       },
     },
     {
-      accessorKey: 'contactos',
-      header: 'Contacto Principal',
+      accessorKey: 'vendedor',
+      header: 'Vendedor',
       cell: ({ row }) => {
-        const contactos = row.getValue('contactos') as any[];
-        const principal = contactos.find(c => c.principal) || contactos[0];
-        return principal ? (
-          <div className="space-y-1">
-            <div className="text-sm font-medium">{principal.nombre}</div>
-            <div className="text-xs text-muted-foreground">{principal.cargo}</div>
-            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-              <Mail className="h-3 w-3" />
-              <span>{principal.email}</span>
-            </div>
-          </div>
-        ) : null;
+        const vendedor = row.getValue('vendedor') as string;
+        return <div className="text-sm">{vendedor || 'Sin asignar'}</div>;
       },
     },
     {
       accessorKey: 'last_interaction_at',
-      header: 'Última Interacción',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Último Contacto
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
       cell: ({ row }) => {
-        const fecha = row.getValue('last_interaction_at') as Date;
+        const fecha = row.getValue('last_interaction_at') as string;
         return fecha ? (
           <div className="text-sm">
             {new Date(fecha).toLocaleDateString('es-CL')}
           </div>
         ) : (
-          <span className="text-muted-foreground">Sin interacciones</span>
+          <span className="text-muted-foreground text-sm">Sin contacto</span>
+        );
+      },
+    },
+    {
+      accessorKey: 'proximaAccion',
+      header: 'Próxima Acción',
+      cell: ({ row }) => {
+        const fecha = row.getValue('proximaAccion') as string;
+        return fecha ? (
+          <div className="text-sm">
+            {new Date(fecha).toLocaleDateString('es-CL')}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">No programada</span>
         );
       },
     },
     {
       id: 'actions',
+      enableHiding: false,
       cell: ({ row }) => {
         const cliente = row.original;
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Abrir menú</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -269,11 +343,25 @@ export default function Clientes() {
     },
   ];
 
+  // Filtros para el DataTable
+  const filters: DataTableFilter[] = [
+    {
+      id: 'estado_relacional',
+      label: 'Estado',
+      options: [
+        { label: 'Nuevo', value: 'Nuevo' },
+        { label: 'Activo', value: 'Activo' },
+        { label: 'Inactivo', value: 'Inactivo' },
+        { label: 'Problemático', value: 'Problemático' },
+      ],
+    },
+  ];
+
   const estadisticas = {
-    total: clientesFiltrados.length,
-    nuevos: clientesFiltrados.filter(c => c.estado_relacional === 'Nuevo').length,
-    activos: clientesFiltrados.filter(c => c.estado_relacional === 'Activo').length,
-    scorePromedio: clientesFiltrados.length > 0 ? Math.round(clientesFiltrados.reduce((acc, c) => acc + c.score, 0) / clientesFiltrados.length) : 0,
+    total: clientes.length,
+    nuevos: clientes.filter(c => c.estado_relacional === 'Nuevo').length,
+    activos: clientes.filter(c => c.estado_relacional === 'Activo').length,
+    scorePromedio: clientes.length > 0 ? Math.round(clientes.reduce((acc, c) => acc + c.score, 0) / clientes.length) : 0,
   };
 
   return (
@@ -338,78 +426,25 @@ export default function Clientes() {
           </Card>
         </div>
 
-        {/* Filtros rápidos */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-lg">Filtros Rápidos</CardTitle>
-            <Popover open={filtrosAvanzadosOpen} onOpenChange={setFiltrosAvanzadosOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtros Avanzados
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="tipo">Tipo de Cliente</Label>
-                    <Select value={filtroAvanzado.tipo} onValueChange={(value) => setFiltroAvanzado(prev => ({ ...prev, tipo: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        <SelectItem value="Público">Público</SelectItem>
-                        <SelectItem value="Privado">Privado</SelectItem>
-                        <SelectItem value="Revendedor">Revendedor</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={() => setFiltrosAvanzadosOpen(false)} className="w-full">
-                    Aplicar Filtros
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {([
-                { key: 'todos', label: 'Todos' },
-                { key: 'publicos', label: 'Públicos' },
-                { key: 'privados', label: 'Privados' },
-                { key: 'revendedores', label: 'Revendedores' },
-                { key: 'score-alto', label: 'Score Alto (80+)' },
-                { key: 'nuevos', label: 'Nuevos' },
-                { key: 'sin-interaccion', label: 'Sin interacción reciente' },
-              ] as const).map(filtro => (
-                <Button 
-                  key={filtro.key}
-                  variant={filtroActivo === filtro.key ? "default" : "outline"} 
-                  size="sm"
-                  onClick={() => setFiltroActivo(filtro.key)}
-                >
-                  {filtro.label}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Tabla de clientes */}
         <Card>
           <CardHeader>
             <CardTitle>Lista de Clientes</CardTitle>
             <CardDescription>
-              {clientesFiltrados.length} clientes {filtroActivo !== 'todos' ? 'filtrados' : 'registrados'} en el sistema
+              {clientes.length} clientes registrados en el sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DataTable 
+            <AdvancedDataTable 
               columns={columns} 
-              data={clientesFiltrados}
-              searchKey="nombre"
-              searchPlaceholder="Buscar por nombre, RUT o contacto..."
+              data={clientes}
+              searchPlaceholder="Buscar por RUT, razón social..."
+              filters={filters}
+              onExport={handleExportCSV}
+              loading={loading}
+              emptyMessage="No se encontraron clientes."
+              pageSize={10}
+              storageKey="clientes-table"
             />
           </CardContent>
         </Card>
@@ -464,7 +499,7 @@ export default function Clientes() {
 
 // Componente de formulario de cliente
 function ClienteForm({ cliente, onSuccess, onCancel }: { 
-  cliente: Cliente | null; 
+  cliente: ClienteExtendido | null; 
   onSuccess: () => void; 
   onCancel: () => void; 
 }) {
@@ -573,7 +608,7 @@ function ClienteForm({ cliente, onSuccess, onCancel }: {
 }
 
 // Componente de detalle de cliente
-function ClienteDetalle({ cliente }: { cliente: Cliente }) {
+function ClienteDetalle({ cliente }: { cliente: ClienteExtendido }) {
   return (
     <div className="py-6 space-y-6">
       <div className="grid grid-cols-2 gap-4">
