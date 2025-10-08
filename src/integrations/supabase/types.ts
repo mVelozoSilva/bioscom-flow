@@ -1175,14 +1175,22 @@ export type Database = {
       }
       seguimientos: {
         Row: {
+          cierre_esperado: string | null
           cliente_id: string | null
           cotizacion_id: string | null
           created_at: string | null
           estado: string | null
+          etapa: string | null
+          fecha_cierre: string | null
           id: string
+          monto: number | null
+          monto_cerrado: number | null
+          motivo_perdida: string | null
+          nombre: string | null
           notas: string | null
           origen: string | null
           prioridad: string | null
+          probabilidad: number | null
           proxima_gestion: string | null
           tarea_programada_id: string | null
           ultima_gestion: string | null
@@ -1190,14 +1198,22 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          cierre_esperado?: string | null
           cliente_id?: string | null
           cotizacion_id?: string | null
           created_at?: string | null
           estado?: string | null
+          etapa?: string | null
+          fecha_cierre?: string | null
           id?: string
+          monto?: number | null
+          monto_cerrado?: number | null
+          motivo_perdida?: string | null
+          nombre?: string | null
           notas?: string | null
           origen?: string | null
           prioridad?: string | null
+          probabilidad?: number | null
           proxima_gestion?: string | null
           tarea_programada_id?: string | null
           ultima_gestion?: string | null
@@ -1205,14 +1221,22 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          cierre_esperado?: string | null
           cliente_id?: string | null
           cotizacion_id?: string | null
           created_at?: string | null
           estado?: string | null
+          etapa?: string | null
+          fecha_cierre?: string | null
           id?: string
+          monto?: number | null
+          monto_cerrado?: number | null
+          motivo_perdida?: string | null
+          nombre?: string | null
           notas?: string | null
           origen?: string | null
           prioridad?: string | null
+          probabilidad?: number | null
           proxima_gestion?: string | null
           tarea_programada_id?: string | null
           ultima_gestion?: string | null
@@ -1578,7 +1602,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_seguimientos_listado: {
+        Row: {
+          cierre_esperado: string | null
+          cliente: string | null
+          cliente_id: string | null
+          cotizacion_id: string | null
+          estado: string | null
+          etapa: string | null
+          fecha_cierre: string | null
+          fecha_creacion: string | null
+          id: string | null
+          monto: number | null
+          monto_cerrado: number | null
+          motivo_perdida: string | null
+          nombre: string | null
+          notas: string | null
+          prioridad: string | null
+          probabilidad: number | null
+          propietario: string | null
+          vendedor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguimientos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimientos_cotizacion_id_fkey"
+            columns: ["cotizacion_id"]
+            isOneToOne: false
+            referencedRelation: "cotizaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimientos_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       fn_normaliza_rut: {
